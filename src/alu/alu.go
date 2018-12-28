@@ -1,19 +1,30 @@
 package alu
 
-import "common"
+import (
+	"common"
+)
 
 // Alu contains the processor's ALU and associated components
 type Alu struct {
 	accumulator  common.Register
 	tempRegister common.Register
-	dataBus      *uint8
+	dataBus      *uint64
+	width        int
+	mask         uint64
+	accBus       common.Bus
+	tempBus      common.Bus
 }
 
 // Init initialize the ALU
-func (a *Alu) Init(dataBus *uint8) {
+func (a *Alu) Init(dataBus *uint64, width int) {
 	a.dataBus = dataBus
-	a.accumulator.Init(dataBus)
-	a.tempRegister.Init(dataBus)
+	a.width = width
+	for i := 0; i < width; i++ {
+		a.mask = a.mask << 1
+		a.mask = a.mask | 1
+	}
+	a.accumulator.Init(dataBus, width, "ACC")
+	a.tempRegister.Init(dataBus, width, "Temp")
 }
 
 func (a *Alu) WriteAccumulator() {
