@@ -1,13 +1,14 @@
 package cpucore
 
 import (
+	"addressstack"
 	"alu"
 	"common"
-	"math/rand"
 	"scratchpad"
 )
 
 const BusWidth = 4
+const AddressWidth = 12
 const NumRegisters = 16
 
 // Core contains all the logic components of our cpu
@@ -17,7 +18,8 @@ type Core struct {
 	internalDataBus common.Bus
 	externalDataBus common.Bus
 	busBuffer       ExternalBusBuffer
-	pc              int
+	as              addressstack.AddressStack
+	clockCycle      int
 }
 
 // Init create and initialize all the core components
@@ -27,22 +29,33 @@ func (c *Core) Init() {
 	c.busBuffer.Init(&c.externalDataBus, &c.internalDataBus, "Bus Buffer")
 	c.regs.Init(&c.internalDataBus, BusWidth, NumRegisters)
 	c.alu.Init(&c.internalDataBus, BusWidth)
+	c.as.Init(&c.internalDataBus, AddressWidth, 3)
 }
 
 func (c *Core) Step() {
 	c.internalDataBus.Reset()
-	c.regs.Select(c.pc)
-	c.internalDataBus.Write(uint64(c.pc))
-	c.regs.Write()
-	// c.regs.Log()
-	c.pc++
-	if c.pc > 15 {
-		c.pc = 0
-	}
-	if rand.Intn(4) == 0 {
+
+	switch c.clockCycle {
+	case 0:
+		// Drive the current address (nybble 0) to the external bus
+		c.as.ReadProgramCounter(0)
 		c.busBuffer.buf.BtoA()
-	} else {
+	case 1:
+		// Drive the current address (nybble 1) to the external bus
+		c.as.ReadProgramCounter(1)
+		c.busBuffer.buf.BtoA()
+	case 2:
+		// Drive the current address (nybble 2) to the external bus
+		c.as.ReadProgramCounter(2)
+		c.busBuffer.buf.BtoA()
+	default:
 		c.busBuffer.buf.Disable()
+	}
+	if c.clockCycle < 8 {
+		c.clockCycle++
+	} else {
+		c.clockCycle = 0
+		c.as.IncProgramCounter()
 	}
 }
 

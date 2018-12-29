@@ -1,8 +1,10 @@
 package cpucore
 
 import (
+	"addressstack"
 	"alu"
 	"common"
+	"css"
 	"image"
 	"scratchpad"
 
@@ -21,6 +23,7 @@ type Renderer struct {
 	aluRenderer             alu.Renderer
 	scratchPadRenderer      scratchpad.Renderer
 	externalBufferRenderer  ExternalBusBufferRenderer
+	asRenderer              addressstack.Renderer
 }
 
 // InitRender Initializes the renderer
@@ -58,6 +61,14 @@ func (r *Renderer) InitRender(core *Core, canvas *canvas.Canvas, bounds image.Re
 		image.Point{r.bounds.Min.X + aluLeftMargin, intBusY + mainBusSizePx/2},
 		image.Point{r.bounds.Min.X + aluWidth + aluLeftMargin, intBusY + mainBusSizePx/2 + aluHeight}})
 
+	asLeftMargin := 20
+	asLeft := r.bounds.Min.X + aluWidth + aluLeftMargin + asLeftMargin
+	asWidth := int(2 * css.RegisterWidth)
+	asHeight := 320
+	r.asRenderer.InitRender(&r.core.as, canvas, image.Rectangle{
+		image.Point{asLeft, intBusY + mainBusSizePx/2},
+		image.Point{asLeft + asLeftMargin + asWidth, intBusY + mainBusSizePx/2 + asHeight}})
+
 	spRightMargin := 20
 	spWidth := 400
 	spHeight := 500
@@ -78,6 +89,7 @@ func (r *Renderer) Render(canvas *canvas.Canvas) {
 	r.internalDataBusRenderer.Render(canvas)
 	r.externalBufferRenderer.Render(canvas)
 	r.aluRenderer.Render(canvas)
+	r.asRenderer.Render(canvas)
 	r.scratchPadRenderer.Render(canvas)
 }
 

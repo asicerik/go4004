@@ -44,7 +44,7 @@ func (r *RegisterRenderer) Render(canvas *canvas.Canvas) {
 		canvas.SetFillStyle(css.RegisterTextUpdate)
 	}
 	if r.reg.Name != "" {
-		canvas.FillText(fmt.Sprintf("%s=%X", r.reg.Name, r.reg.Reg), float64(r.bounds.Min.X+10), float64(r.bounds.Min.Y+30))
+		canvas.FillText(fmt.Sprintf("%s%X", r.reg.Name, r.reg.Reg), float64(r.bounds.Min.X+10), float64(r.bounds.Min.Y+30))
 	} else {
 		canvas.FillText(fmt.Sprintf("%X", r.reg.Reg), float64(r.bounds.Min.X+50), float64(r.bounds.Min.Y+30))
 	}

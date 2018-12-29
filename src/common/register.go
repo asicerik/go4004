@@ -17,6 +17,7 @@ func (r *Register) Init(dataBus *Bus, width int, name string) {
 		r.mask = r.mask | 1
 	}
 	r.Name = name
+	r.changed = true
 }
 
 func (r *Register) Read() {
@@ -26,5 +27,18 @@ func (r *Register) Read() {
 
 func (r *Register) Write() {
 	r.Reg = (*r.dataBus).Read() & r.mask
+	r.changed = true
+}
+
+// WriteDirect directly writes the register instead of using the bus
+func (r *Register) WriteDirect(value uint64) {
+	r.Reg = value & r.mask
+	r.changed = true
+}
+
+// Increment directly increments the value in a register
+// Not sure all hardware supports this
+func (r *Register) Increment() {
+	r.Reg = (r.Reg + 1) & r.mask
 	r.changed = true
 }
