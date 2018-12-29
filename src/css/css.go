@@ -7,7 +7,7 @@ var (
 	RegisterBorder     = "#ddd"
 	RegisterBackground = "#222"
 	RegisterTextNormal = "#fff"
-	RegisterTextUpdate = "#f00"
+	RegisterTextUpdate = "#f44"
 	BusBorder          = "#ddd"
 	BusBackground      = "#666"
 )

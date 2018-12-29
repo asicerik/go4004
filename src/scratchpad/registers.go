@@ -2,21 +2,20 @@ package scratchpad
 
 import (
 	"common"
-	"css"
+	"fmt"
 )
 
 type Registers struct {
 	// interfaces.BusDriver
 	// interfaces.ClockedElement
-	regs      []common.Register
-	index     int
-	dataBus   *uint64
-	width     int
-	mask      uint64
-	renderBus common.Bus
+	regs    []common.Register
+	index   int
+	dataBus *common.Bus
+	width   int
+	mask    uint64
 }
 
-func (r *Registers) Init(dataBus *uint64, width int, depth int) {
+func (r *Registers) Init(dataBus *common.Bus, width int, depth int) {
 	r.regs = make([]common.Register, depth)
 	for i := 0; i < depth; i++ {
 		r.regs[i].Init(dataBus, width, "")
@@ -29,11 +28,6 @@ func (r *Registers) Init(dataBus *uint64, width int, depth int) {
 
 	r.index = 0
 	r.dataBus = dataBus
-
-	for i := 0; i < depth; i++ {
-		r.regs[i].X = float64(i%2) * css.RegisterWidth
-		r.regs[i].Y = float64(i/2)*css.RegisterHeight + 80
-	}
 }
 
 func (r *Registers) Read() {
@@ -46,4 +40,11 @@ func (r *Registers) Select(index int) {
 
 func (r *Registers) Write() {
 	r.regs[r.index].Write()
+}
+
+func (r *Registers) Log() {
+	for i := range r.regs {
+		fmt.Printf("%X ", r.regs[i].Reg)
+	}
+	fmt.Println()
 }

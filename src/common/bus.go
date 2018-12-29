@@ -1,24 +1,22 @@
 package common
 
-import "image"
-
+// Bus is used to transfer data between elements and also handle graphics rendering
 type Bus struct {
 	Name     string
-	Data     uint64
+	data     uint64
 	BusWidth int
-
-	// These are for rendering
-	startLoc image.Point
-	endLoc   image.Point
-	widthPix int
+	changed  bool
 }
 
 func (b *Bus) Init(name string) {
 	b.Name = name
 }
 
-func (b *Bus) InitRender(startLoc image.Point, endLoc image.Point, widthPix int) {
-	b.startLoc = startLoc
-	b.endLoc = endLoc
-	b.widthPix = widthPix
+func (b *Bus) Write(value uint64) {
+	b.data = value
+	b.changed = true
+}
+
+func (b *Bus) Read() (value uint64) {
+	return b.data
 }

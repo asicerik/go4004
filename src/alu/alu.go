@@ -8,7 +8,7 @@ import (
 type Alu struct {
 	accumulator  common.Register
 	tempRegister common.Register
-	dataBus      *uint64
+	dataBus      *common.Bus
 	width        int
 	mask         uint64
 	accBus       common.Bus
@@ -16,7 +16,7 @@ type Alu struct {
 }
 
 // Init initialize the ALU
-func (a *Alu) Init(dataBus *uint64, width int) {
+func (a *Alu) Init(dataBus *common.Bus, width int) {
 	a.dataBus = dataBus
 	a.width = width
 	for i := 0; i < width; i++ {
