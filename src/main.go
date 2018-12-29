@@ -32,7 +32,7 @@ func main() {
 	lastTime := time.Now()
 	wnd.MainLoop(func() {
 		currTime := time.Now()
-		if currTime.Sub(lastTime).Seconds() >= 0.01 {
+		if currTime.Sub(lastTime).Seconds() >= 0.1 {
 			lastTime = currTime
 			core.Step()
 			// Render twice because glfw is double buffered

@@ -51,6 +51,51 @@ func (r *RegisterRenderer) Render(canvas *canvas.Canvas) {
 	r.dirty--
 }
 
+// BufferRenderer renders a Buffer to the screen
+type BufferRenderer struct {
+	buf    *Buffer
+	bounds image.Rectangle
+	dirty  int // needs to be redrawn if non-zero
+}
+
+// InitRender initializes the element for rendering
+func (r *BufferRenderer) InitRender(buf *Buffer, bounds image.Rectangle) {
+	r.buf = buf
+	r.bounds = bounds
+	r.dirty = 2
+}
+
+// Render the contents to the screen
+func (r *BufferRenderer) Render(canvas *canvas.Canvas) {
+	if r.buf.changed {
+		r.dirty = 2
+		r.buf.changed = false
+	}
+	if r.dirty == 0 {
+		return
+	}
+	canvas.SetStrokeStyle(css.RegisterBorder)
+	canvas.SetFillStyle(css.RegisterBackground)
+	canvas.FillRect(float64(r.bounds.Min.X), float64(r.bounds.Min.Y),
+		float64(r.bounds.Dx()), float64(r.bounds.Dy()))
+	canvas.StrokeRect(float64(r.bounds.Min.X), float64(r.bounds.Min.Y),
+		float64(r.bounds.Dx()), float64(r.bounds.Dy()))
+
+	canvas.SetFillStyle(css.RegisterTextNormal)
+	canvas.FillText(fmt.Sprintf("%s", r.buf.Name), float64(r.bounds.Min.X+10), float64(r.bounds.Min.Y+30))
+
+	canvas.SetFillStyle(css.BufferDirArrow)
+	arrowWidth := 16.0
+	arrowHeight := 24.0
+	// TODO: fix these magic #s here
+	if r.buf.Dir == DirAtoB {
+		RenderArrowHead(canvas, float64(r.bounds.Max.X)-arrowWidth-5, float64(r.bounds.Max.Y)-15, arrowHeight, arrowWidth, 3)
+	} else if r.buf.Dir == DirBtoA {
+		RenderArrowHead(canvas, float64(r.bounds.Max.X)-arrowWidth-5, float64(r.bounds.Max.Y)-arrowHeight-10, arrowHeight, arrowWidth, 2)
+	}
+	r.dirty--
+}
+
 // BusRenderer renders a Bus to the screen
 type BusRenderer struct {
 	bus      *Bus
@@ -71,15 +116,24 @@ func (b *BusRenderer) InitRender(bus *Bus, startLoc image.Point, endLoc image.Po
 
 // Render the contents to the screen
 func (b *BusRenderer) Render(canvas *canvas.Canvas) {
-	if b.bus.changed {
+	busCollision := false
+	if b.bus.writes > 0 {
 		b.dirty = 2
-		b.bus.changed = false
+		if b.bus.writes > 1 {
+			busCollision = true
+		}
+		b.bus.writes = 0
 	}
 	if b.dirty == 0 {
 		return
 	}
-	canvas.SetStrokeStyle(css.BusBackground)
-	canvas.SetFillStyle(css.BusBackground)
+	if busCollision {
+		canvas.SetStrokeStyle(css.BusCollision)
+		canvas.SetFillStyle(css.BusCollision)
+	} else {
+		canvas.SetStrokeStyle(css.BusBackground)
+		canvas.SetFillStyle(css.BusBackground)
+	}
 	arrowWidth := float64(b.widthPix)
 	arrowHeight := float64(b.widthPix) * 1.75
 	if b.startLoc.Y == b.endLoc.Y {
@@ -105,6 +159,7 @@ func (b *BusRenderer) Render(canvas *canvas.Canvas) {
 }
 
 func RenderArrowHead(canvas *canvas.Canvas, x float64, y float64, w float64, h float64, dir int) {
+	canvas.BeginPath()
 	canvas.MoveTo(x, y)
 	switch dir {
 	case 0:
@@ -124,5 +179,6 @@ func RenderArrowHead(canvas *canvas.Canvas, x float64, y float64, w float64, h f
 		canvas.LineTo(x-w/2, y-h)
 		canvas.LineTo(x, y)
 	}
+	canvas.ClosePath()
 	canvas.Fill()
 }

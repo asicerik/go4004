@@ -5,18 +5,24 @@ type Bus struct {
 	Name     string
 	data     uint64
 	BusWidth int
-	changed  bool
+	writes   int // Number of writes to the bus during this tick
 }
 
 func (b *Bus) Init(name string) {
 	b.Name = name
+	b.data = 0xffffffffffffffff
 }
 
 func (b *Bus) Write(value uint64) {
 	b.data = value
-	b.changed = true
+	b.writes++
 }
 
 func (b *Bus) Read() (value uint64) {
 	return b.data
+}
+
+func (b *Bus) Reset() {
+	b.data = 0xffffffffffffffff
+	b.writes = 0
 }
