@@ -57,7 +57,12 @@ func (c *Core) getDecoderFlag(index int) int {
 	return c.Decoder.Flags[index].Value
 }
 
-func (c *Core) Step() {
+// Calculate the internal logic before the next clock edge
+func (c *Core) Calculate() {
+	c.Decoder.CalculateFlags()
+}
+
+func (c *Core) Clock() {
 	c.internalDataBus.Reset()
 
 	c.Decoder.Clock()

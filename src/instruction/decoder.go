@@ -20,7 +20,8 @@ type Decoder struct {
 	// Control Flags
 	Flags map[int]DecoderFlag
 
-	clockCount      int
+	clockCount      int // Internal clock count
+	instPhase       int // which instruction phase are we in
 	syncSent        bool
 	currInstruction int
 }
@@ -72,7 +73,7 @@ func (d *Decoder) Init() {
 }
 
 func (d *Decoder) GetClockCount() int {
-	return d.clockCount
+	return d.instPhase
 }
 
 func (d *Decoder) resetFlags() {
@@ -93,25 +94,30 @@ func (d *Decoder) writeFlag(index int, value int) {
 	flag.Changed = true // we always set changed so the UI can show the write
 	flag.Value = value
 	d.Flags[index] = flag
-	rlog.Tracef(0, "Wrote Flag: Name=%s, value=%d. ClkCnt=%d", flag.Name, d.Flags[index].Value, d.clockCount)
+	rlog.Tracef(1, "Wrote Flag: Name=%s, value=%d. ClkCnt=%d", flag.Name, d.Flags[index].Value, d.clockCount)
 }
 
+// Clock updates flip flops on rising edge of the clock
 func (d *Decoder) Clock() {
-	d.resetFlags()
-
+	d.instPhase = d.clockCount // delayed by one clock
 	if d.clockCount < 7 {
 		d.clockCount++
 	} else {
 		d.clockCount = 0
+		d.syncSent = true
+	}
+}
+
+func (d *Decoder) CalculateFlags() {
+	d.resetFlags()
+
+	if d.clockCount == 7 {
 		// Handle startup condition. Make sure we send sync before incrementing
 		// the program counter
 		if d.syncSent {
 			d.writeFlag(PCInc, 1)
 		}
-		d.syncSent = true // FIXME
 	}
-
-	// Defaults
 
 	switch d.clockCount {
 	case 0:
@@ -126,15 +132,16 @@ func (d *Decoder) Clock() {
 		// Drive the current address (nybble 2) to the external bus
 		d.writeFlag(BusDir, common.DirOut)
 		d.writeFlag(PCOut, 1)
-	case 4:
+	case 3:
 		fallthrough
-	case 5:
+	case 4:
 		if d.syncSent {
 			// Read the OPR from the external bus and write it into the instruction register
 			d.writeFlag(BusDir, common.DirIn)
 			d.writeFlag(InstRegLoad, 1)
 		}
-		if d.clockCount == 5 {
+	case 5:
+		if d.syncSent {
 			d.writeFlag(DecodeInstruction, 1)
 		}
 	case 7:

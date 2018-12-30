@@ -1,5 +1,7 @@
 package common
 
+import "github.com/romana/rlog"
+
 // Bus is used to transfer data between elements and also handle graphics rendering
 type Bus struct {
 	Name     string
@@ -23,6 +25,9 @@ func (b *Bus) Init(busWidth int, name string) {
 func (b *Bus) Write(value uint64) {
 	b.data = value
 	b.writes++
+	if b.writes > 1 {
+		rlog.Warnf("**** Bus collision. Name=%s, writes=%d", b.Name, b.writes)
+	}
 }
 
 func (b *Bus) Read() (value uint64) {

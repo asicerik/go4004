@@ -29,6 +29,7 @@ func (s *AddressStack) Init(dataBus *common.Bus, width int, depth int) {
 
 	s.stackPointer = 0
 	s.dataBus = dataBus
+	s.pc.WriteDirect(0x123)
 }
 
 // GetProgramCounter is for debugging

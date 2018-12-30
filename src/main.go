@@ -17,8 +17,9 @@ import (
 func main() {
 
 	// Programmatically change an rlog setting from within the program
-	os.Setenv("RLOG_LOG_LEVEL", "TRACE")
+	os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
 	os.Setenv("RLOG_TRACE_LEVEL", "0")
+	os.Setenv("RLOG_LOG_FILE", "go4004.log")
 	rlog.UpdateEnv()
 
 	rlog.Info("Welcome to the go 4004 emulator :)")
@@ -54,9 +55,10 @@ func main() {
 		currTime := time.Now()
 		if currTime.Sub(lastTime).Seconds() >= 0.5 {
 			lastTime = currTime
-			core.Step()
-			rom.Clock()
 			DumpState(core, rom)
+			core.Calculate()
+			core.Clock()
+			rom.Clock()
 			// Render twice because glfw is double buffered
 			renderCount = 2
 		}
