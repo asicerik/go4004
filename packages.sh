@@ -8,6 +8,7 @@ gopackages='
     github.com/derekparker/delve/cmd/dlv
     github.com/fogleman/gg
 	github.com/tfriedel6/canvas/glfwcanvas
+	github.com/romana/rlog
 '
 
 linux_gopackages=''

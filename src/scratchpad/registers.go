@@ -6,8 +6,6 @@ import (
 )
 
 type Registers struct {
-	// interfaces.BusDriver
-	// interfaces.ClockedElement
 	regs    []common.Register
 	index   int
 	dataBus *common.Bus

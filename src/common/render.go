@@ -10,9 +10,10 @@ import (
 
 // RegisterRenderer renders a Register to the screen
 type RegisterRenderer struct {
-	reg    *Register
-	bounds image.Rectangle
-	dirty  int // needs to be redrawn if non-zero
+	reg         *Register
+	bounds      image.Rectangle
+	ShowUpdates bool
+	dirty       int // needs to be redrawn if non-zero
 }
 
 // InitRender initializes the element for rendering
@@ -20,6 +21,7 @@ func (r *RegisterRenderer) InitRender(reg *Register, bounds image.Rectangle) {
 	r.reg = reg
 	r.bounds = bounds
 	r.dirty = 2
+	r.ShowUpdates = true
 }
 
 // Render the contents to the screen
@@ -31,14 +33,18 @@ func (r *RegisterRenderer) Render(canvas *canvas.Canvas) {
 	if r.dirty == 0 {
 		return
 	}
+	if r.reg.Selected {
+		canvas.SetFillStyle(css.RegisterBackgroundSelected)
+	} else {
+		canvas.SetFillStyle(css.RegisterBackground)
+	}
 	canvas.SetStrokeStyle(css.RegisterBorder)
-	canvas.SetFillStyle(css.RegisterBackground)
 	canvas.FillRect(float64(r.bounds.Min.X), float64(r.bounds.Min.Y),
 		float64(r.bounds.Dx()), float64(r.bounds.Dy()))
 	canvas.StrokeRect(float64(r.bounds.Min.X), float64(r.bounds.Min.Y),
 		float64(r.bounds.Dx()), float64(r.bounds.Dy()))
 
-	if r.dirty < 3 {
+	if r.dirty < 3 || !r.ShowUpdates {
 		canvas.SetFillStyle(css.RegisterTextNormal)
 	} else {
 		canvas.SetFillStyle(css.RegisterTextUpdate)

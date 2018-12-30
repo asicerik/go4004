@@ -1,8 +1,10 @@
 package common
 
 type Register struct {
-	Name    string
-	Reg     uint64
+	Name     string
+	Reg      uint64
+	Selected bool // For the UI to show this is selected
+
 	dataBus *Bus
 	width   int
 	mask    uint64
@@ -28,6 +30,11 @@ func (r *Register) Read() {
 func (r *Register) Write() {
 	r.Reg = (*r.dataBus).Read() & r.mask
 	r.changed = true
+}
+
+// ReadDirect directly reads the register instead of using the bus
+func (r *Register) ReadDirect() (value uint64) {
+	return r.Reg & r.mask
 }
 
 // WriteDirect directly writes the register instead of using the bus

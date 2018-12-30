@@ -6,6 +6,7 @@ import (
 	"common"
 	"css"
 	"image"
+	"instruction"
 	"scratchpad"
 
 	"github.com/tfriedel6/canvas"
@@ -24,6 +25,7 @@ type Renderer struct {
 	scratchPadRenderer      scratchpad.Renderer
 	externalBufferRenderer  ExternalBusBufferRenderer
 	asRenderer              addressstack.Renderer
+	instRenderer            instruction.Renderer
 }
 
 // InitRender Initializes the renderer
@@ -35,7 +37,7 @@ func (r *Renderer) InitRender(core *Core, canvas *canvas.Canvas, bounds image.Re
 	// Initialize all the child renderers
 	mainBusSizePx := 32
 	extBusY := r.bounds.Min.Y + mainBusSizePx/2
-	r.externalDataBusRenderer.InitRender(&r.core.externalDataBus,
+	r.externalDataBusRenderer.InitRender(&r.core.ExternalDataBus,
 		image.Point{r.bounds.Min.X, extBusY},
 		image.Point{r.bounds.Max.X, extBusY},
 		mainBusSizePx)
@@ -57,12 +59,22 @@ func (r *Renderer) InitRender(core *Core, canvas *canvas.Canvas, bounds image.Re
 	aluLeftMargin := 20
 	aluWidth := 400
 	aluHeight := 200
+	aluRight := r.bounds.Min.X + aluWidth + aluLeftMargin
 	r.aluRenderer.InitRender(&r.core.alu, canvas, image.Rectangle{
 		image.Point{r.bounds.Min.X + aluLeftMargin, intBusY + mainBusSizePx/2},
-		image.Point{r.bounds.Min.X + aluWidth + aluLeftMargin, intBusY + mainBusSizePx/2 + aluHeight}})
+		image.Point{aluRight, intBusY + mainBusSizePx/2 + aluHeight}})
 
-	asLeftMargin := 20
-	asLeft := r.bounds.Min.X + aluWidth + aluLeftMargin + asLeftMargin
+	instLeftMargin := 20
+	instLeft := aluRight + instLeftMargin
+	instWidth := int(css.RegisterWidth)
+	instHeight := 320
+	instRight := instLeft + instWidth
+	r.instRenderer.InitRender(&r.core.inst, canvas, image.Rectangle{
+		image.Point{instLeft, intBusY + mainBusSizePx/2},
+		image.Point{instRight, intBusY + mainBusSizePx/2 + instHeight}})
+
+	asLeftMargin := 40
+	asLeft := instRight + asLeftMargin
 	asWidth := int(2 * css.RegisterWidth)
 	asHeight := 320
 	r.asRenderer.InitRender(&r.core.as, canvas, image.Rectangle{
@@ -89,6 +101,7 @@ func (r *Renderer) Render(canvas *canvas.Canvas) {
 	r.internalDataBusRenderer.Render(canvas)
 	r.externalBufferRenderer.Render(canvas)
 	r.aluRenderer.Render(canvas)
+	r.instRenderer.Render(canvas)
 	r.asRenderer.Render(canvas)
 	r.scratchPadRenderer.Render(canvas)
 }
