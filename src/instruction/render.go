@@ -15,6 +15,7 @@ type Renderer struct {
 	bounds  image.Rectangle
 
 	// Child Renderers
+	ioRenderer                 common.RegisterRenderer
 	instructionRenderer        common.RegisterRenderer
 	instructionDataBusRenderer common.BusRenderer
 }
@@ -35,13 +36,19 @@ func (r *Renderer) InitRender(instReg *InstructionReg, canvas *canvas.Canvas, bo
 		image.Point{int(css.RegisterWidth/2) + regX + r.bounds.Min.X, r.bounds.Min.Y + busHeight},
 		busWidth)
 
-	r.instructionRenderer.InitRender(&r.instReg.reg, image.Rectangle{
+	r.ioRenderer.InitRender(&r.instReg.busReg, image.Rectangle{
 		image.Point{regX + r.bounds.Min.X, r.bounds.Min.Y + busHeight},
 		image.Point{regX + r.bounds.Min.X + int(css.RegisterWidth), r.bounds.Min.Y + busHeight + int(css.RegisterHeight)}})
+
+	r.instructionRenderer.InitRender(&r.instReg.instReg, image.Rectangle{
+		image.Point{regX + r.bounds.Min.X, r.bounds.Min.Y + busHeight + int(css.RegisterHeight)},
+		image.Point{regX + r.bounds.Min.X + int(css.RegisterWidth), r.bounds.Min.Y + busHeight + 2*int(css.RegisterHeight)}})
 }
 
 // Render the contents to the screen
 func (r *Renderer) Render(canvas *canvas.Canvas) {
+	r.instructionDataBusRenderer.DrivingBus = &r.instReg.drivingBus
 	r.instructionDataBusRenderer.Render(canvas)
+	r.ioRenderer.Render(canvas)
 	r.instructionRenderer.Render(canvas)
 }

@@ -89,9 +89,11 @@ func (c *Core) Step() {
 		if c.syncSent {
 			// Read the OPR from the external bus and write it into the instruction register
 			c.busBuffer.buf.AtoB()
-			c.inst.Write()
+			c.inst.Write(c.clockCount - 4)
 			if c.clockCount == 5 {
 				// Now turn around and drive the instruction register OPR to the external bus
+				// To prevent bus collision warning. Ideally, we should make sure write count == 1 first
+				c.internalDataBus.Reset()
 				c.inst.ReadOPR()
 				c.busBuffer.buf.BtoA()
 				rlog.Infof("Driving OPR")

@@ -2,15 +2,20 @@ package instruction
 
 import "common"
 
+const InstructionWidth = 16
+
 type InstructionReg struct {
-	reg     common.Register
-	dataBus *common.Bus
-	width   int
-	mask    uint64
+	busReg     common.Register
+	instReg    common.Register
+	dataBus    *common.Bus
+	width      int
+	mask       uint64
+	drivingBus bool
 }
 
 func (r *InstructionReg) Init(dataBus *common.Bus, width int) {
-	r.reg.Init(dataBus, width, "INST ")
+	r.busReg.Init(dataBus, width, "I/O ")
+	r.instReg.Init(nil, 8, "INST ")
 	r.width = width
 	for i := 0; i < width; i++ {
 		r.mask = r.mask << 1
@@ -21,13 +26,20 @@ func (r *InstructionReg) Init(dataBus *common.Bus, width int) {
 }
 
 func (r *InstructionReg) GetInstructionRegister() uint64 {
-	return r.reg.Reg
+	return r.instReg.ReadDirect()
 }
 
 func (r *InstructionReg) ReadOPR() {
-	r.reg.Read()
+	r.busReg.Read()
+	r.drivingBus = true
 }
 
-func (r *InstructionReg) Write() {
-	r.reg.Write()
+func (r *InstructionReg) Write(nybble int) {
+	r.busReg.Write()
+	if nybble == 0 {
+		r.instReg.WriteDirect(r.busReg.ReadDirect() << 4)
+	} else {
+		tmp := r.instReg.ReadDirect()
+		r.instReg.WriteDirect(tmp | r.busReg.ReadDirect())
+	}
 }

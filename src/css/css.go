@@ -11,6 +11,7 @@ var (
 	RegisterTextUpdate         = "#f44"
 	BusBorder                  = "#ddd"
 	BusBackground              = "#666"
+	BusBackgroundWritten       = "#4a4"
 	BusCollision               = "#f00"
 	BufferDirArrow             = "#4f4"
 )

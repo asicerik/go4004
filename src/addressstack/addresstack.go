@@ -35,6 +35,7 @@ func (s *AddressStack) Init(dataBus *common.Bus, width int, depth int) {
 func (s *AddressStack) ReadProgramCounter(nybble uint64) {
 	value := s.pc.Reg >> (nybble * 4) & 0xf
 	s.dataBus.Write(value)
+	s.drivingBus = true
 }
 
 // WriteProgramCounter writes the program counter one nybble at a time

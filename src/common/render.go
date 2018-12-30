@@ -104,11 +104,12 @@ func (r *BufferRenderer) Render(canvas *canvas.Canvas) {
 
 // BusRenderer renders a Bus to the screen
 type BusRenderer struct {
-	bus      *Bus
-	startLoc image.Point
-	endLoc   image.Point
-	widthPix int
-	dirty    int // needs to be redrawn if non-zero
+	bus        *Bus
+	startLoc   image.Point
+	endLoc     image.Point
+	widthPix   int
+	dirty      int // needs to be redrawn if non-zero
+	DrivingBus *bool
 }
 
 // InitRender initializes the element for rendering
@@ -123,19 +124,30 @@ func (b *BusRenderer) InitRender(bus *Bus, startLoc image.Point, endLoc image.Po
 // Render the contents to the screen
 func (b *BusRenderer) Render(canvas *canvas.Canvas) {
 	busCollision := false
-	if b.bus.writes > 0 {
-		b.dirty = 2
+	busDriven := false
+	if b.DrivingBus != nil {
+		busDriven = *b.DrivingBus
+	}
+	if b.bus.writes > 0 || busDriven {
+		b.dirty = 4
 		if b.bus.writes > 1 {
 			busCollision = true
 		}
 		b.bus.writes = 0
+		if b.DrivingBus != nil && *b.DrivingBus {
+			*b.DrivingBus = false
+		}
 	}
+
 	if b.dirty == 0 {
 		return
 	}
 	if busCollision {
 		canvas.SetStrokeStyle(css.BusCollision)
 		canvas.SetFillStyle(css.BusCollision)
+	} else if busDriven {
+		canvas.SetStrokeStyle(css.BusBackgroundWritten)
+		canvas.SetFillStyle(css.BusBackgroundWritten)
 	} else {
 		canvas.SetStrokeStyle(css.BusBackground)
 		canvas.SetFillStyle(css.BusBackground)

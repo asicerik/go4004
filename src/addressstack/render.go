@@ -52,6 +52,7 @@ func (r *Renderer) InitRender(as *AddressStack, canvas *canvas.Canvas, bounds im
 // Render the contents to the screen
 func (r *Renderer) Render(canvas *canvas.Canvas) {
 
+	r.dataBusRenderer.DrivingBus = &r.as.drivingBus
 	r.dataBusRenderer.Render(canvas)
 
 	for i := range r.registerRenderers {
