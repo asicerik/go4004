@@ -2,6 +2,8 @@ package alu
 
 import (
 	"common"
+
+	"github.com/romana/rlog"
 )
 
 // Alu contains the processor's ALU and associated components
@@ -28,9 +30,19 @@ func (a *Alu) Init(dataBus *common.Bus, width int) {
 }
 
 func (a *Alu) WriteAccumulator() {
+	rlog.Debugf("Wrote Accumulator with 0x%X", a.dataBus.Read())
 	a.accumulator.Write()
 }
 
 func (a *Alu) ReadAccumulator() {
 	a.accumulator.Read()
+}
+
+func (a *Alu) WriteTemp() {
+	rlog.Debugf("Wrote Temp with 0x%X", a.dataBus.Read())
+	a.tempRegister.Write()
+}
+
+func (a *Alu) ReadTemp() {
+	a.tempRegister.Read()
 }

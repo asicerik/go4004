@@ -4,16 +4,17 @@ import "common"
 
 const InstructionWidth = 16
 
-type InstructionReg struct {
+type Instruction struct {
 	busReg     common.Register
 	instReg    common.Register
 	dataBus    *common.Bus
 	width      int
 	mask       uint64
 	drivingBus bool
+	writeCount int
 }
 
-func (r *InstructionReg) Init(dataBus *common.Bus, width int) {
+func (r *Instruction) Init(dataBus *common.Bus, width int) {
 	r.busReg.Init(dataBus, width, "I/O ")
 	r.instReg.Init(nil, 8, "INST ")
 	r.width = width
@@ -25,21 +26,29 @@ func (r *InstructionReg) Init(dataBus *common.Bus, width int) {
 	r.dataBus = dataBus
 }
 
-func (r *InstructionReg) GetInstructionRegister() uint64 {
+func (r *Instruction) GetInstructionRegister() uint64 {
 	return r.instReg.ReadDirect()
 }
 
-func (r *InstructionReg) ReadOPR() {
+// Reset ...
+func (r *Instruction) Reset() {
+	r.instReg.WriteDirect(0)
+	r.drivingBus = false
+	r.writeCount = 0
+}
+
+func (r *Instruction) ReadOPR() {
 	r.busReg.Read()
 	r.drivingBus = true
 }
 
-func (r *InstructionReg) Write(nybble int) {
+func (r *Instruction) Write() {
 	r.busReg.Write()
-	if nybble == 0 {
+	if r.writeCount == 0 {
 		r.instReg.WriteDirect(r.busReg.ReadDirect() << 4)
 	} else {
 		tmp := r.instReg.ReadDirect()
 		r.instReg.WriteDirect(tmp | r.busReg.ReadDirect())
 	}
+	r.writeCount++
 }

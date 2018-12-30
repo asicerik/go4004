@@ -42,10 +42,12 @@ func (r *Rom4001) Init(busExt *common.Bus, sync *int) {
 	// Load a sample program into memory
 	r.data[0] = 0xD5 // LDM 5
 	r.data[1] = 0xB2 // XCH r2
-	r.data[2] = 0x40 // JUN 0
-	r.data[3] = 0x00 // JUN 0 (cont)
+	r.data[2] = 0xDE // LDM 0xE
+	r.data[3] = 0xB3 // XCH r3
+	r.data[4] = 0x40 // JUN 0
+	r.data[5] = 0x00 // JUN 0 (cont)
 	// Set the rest to incrementing values
-	for i := 4; i < len(r.data); i++ {
+	for i := 6; i < len(r.data); i++ {
 		r.data[i] = uint8(i)
 	}
 	r.calculateValueRegisters()

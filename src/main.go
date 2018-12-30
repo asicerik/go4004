@@ -51,11 +51,11 @@ func main() {
 	lastTime := time.Now()
 	wnd.MainLoop(func() {
 		currTime := time.Now()
-		if currTime.Sub(lastTime).Seconds() >= 0.1 {
+		if currTime.Sub(lastTime).Seconds() >= 0.01 {
 			lastTime = currTime
 			core.Step()
 			rom.Clock()
-			DumpState(core, rom)
+			//DumpState(core, rom)
 			// Render twice because glfw is double buffered
 			renderCount = 2
 		}
@@ -74,7 +74,8 @@ func main() {
 }
 
 func DumpState(core cpucore.Core, rom rom4001.Rom4001) {
-	rlog.Infof("DBUS=%X, INST=%X, SYNC=%d, CCLK=%d, ROMCLK=%d",
+	rlog.Infof("PC=%X, DBUS=%X, INST=%X, SYNC=%d, CCLK=%d, ROMCLK=%d",
+		core.GetProgramCounter(),
 		core.ExternalDataBus.Read(),
 		core.GetInstructionRegister(),
 		core.Sync, core.GetClockCount(),

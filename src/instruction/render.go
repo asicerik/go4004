@@ -10,7 +10,7 @@ import (
 
 // Renderer contains all the rendering code of our cpu
 type Renderer struct {
-	instReg *InstructionReg
+	instReg *Instruction
 	dirty   int
 	bounds  image.Rectangle
 
@@ -21,7 +21,7 @@ type Renderer struct {
 }
 
 // InitRender Initializes the renderer
-func (r *Renderer) InitRender(instReg *InstructionReg, canvas *canvas.Canvas, bounds image.Rectangle) {
+func (r *Renderer) InitRender(instReg *Instruction, canvas *canvas.Canvas, bounds image.Rectangle) {
 	r.instReg = instReg
 	r.bounds = bounds
 	r.dirty = 2

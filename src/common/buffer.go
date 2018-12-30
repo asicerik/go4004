@@ -3,6 +3,8 @@ package common
 const DirNone = 0 // disconnected from the bus
 const DirAtoB = 1 // transferring from A to B
 const DirBtoA = 2 // transferring from B to A
+const DirOut = 3  // transferring in to out
+const DirIn = 4   // transferring out to in
 
 // Buffer represents a bi-directional non-latching bus buffer
 type Buffer struct {

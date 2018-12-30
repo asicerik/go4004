@@ -31,6 +31,11 @@ func (s *AddressStack) Init(dataBus *common.Bus, width int, depth int) {
 	s.dataBus = dataBus
 }
 
+// GetProgramCounter is for debugging
+func (s *AddressStack) GetProgramCounter() uint64 {
+	return s.pc.Reg
+}
+
 // ReadProgramCounter reads the program counter one nybble at a time
 func (s *AddressStack) ReadProgramCounter(nybble uint64) {
 	value := s.pc.Reg >> (nybble * 4) & 0xf

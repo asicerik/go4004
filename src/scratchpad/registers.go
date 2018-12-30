@@ -3,6 +3,8 @@ package scratchpad
 import (
 	"common"
 	"fmt"
+
+	"github.com/romana/rlog"
 )
 
 type Registers struct {
@@ -33,10 +35,12 @@ func (r *Registers) Read() {
 }
 
 func (r *Registers) Select(index int) {
+	rlog.Debugf("Selected ScratchPad Register %d", index)
 	r.index = index
 }
 
 func (r *Registers) Write() {
+	rlog.Debugf("Writing ScratchPad Register %d with %X", r.index, r.dataBus.Read())
 	r.regs[r.index].Write()
 }
 

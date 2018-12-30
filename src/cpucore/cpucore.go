@@ -18,15 +18,14 @@ const NumRegisters = 16
 type Core struct {
 	ExternalDataBus common.Bus
 	Sync            int
+	Decoder         instruction.Decoder
 
 	regs            scratchpad.Registers
 	alu             alu.Alu
 	internalDataBus common.Bus
 	busBuffer       ExternalBusBuffer
 	as              addressstack.AddressStack
-	inst            instruction.InstructionReg
-	clockCount      int
-	syncSent        bool
+	inst            instruction.Instruction
 }
 
 // Init create and initialize all the core components
@@ -39,68 +38,99 @@ func (c *Core) Init() {
 	c.as.Init(&c.internalDataBus, AddressWidth, 3)
 	c.inst.Init(&c.internalDataBus, BusWidth)
 	c.Sync = 0
-	c.clockCount = 0 // Start mid cycle so we can catch the next Sync
-	c.syncSent = false
 }
 
 func (c *Core) GetClockCount() int {
-	return c.clockCount
+	return c.Decoder.GetClockCount()
 }
 
 func (c *Core) GetInstructionRegister() uint64 {
 	return c.inst.GetInstructionRegister()
 }
 
+func (c *Core) GetProgramCounter() uint64 {
+	return c.as.GetProgramCounter()
+}
+
 func (c *Core) Step() {
 	c.internalDataBus.Reset()
 
-	if c.clockCount < 7 {
-		c.clockCount++
-	} else {
-		c.clockCount = 0
-		// Handle startup condition. Make sure we send sync before incrementing
-		// the program counter
-		if c.syncSent {
-			c.as.IncProgramCounter()
-		}
-		c.syncSent = c.Sync == 0
-	}
+	c.Decoder.Clock()
 
 	// Defaults
-	c.Sync = 1
 	c.busBuffer.buf.Disable()
 
-	switch c.clockCount {
-	case 0:
-		// Drive the current address (nybble 0) to the external bus
-		c.as.ReadProgramCounter(0)
-		c.busBuffer.buf.BtoA()
-	case 1:
-		// Drive the current address (nybble 1) to the external bus
-		c.as.ReadProgramCounter(1)
-		c.busBuffer.buf.BtoA()
-	case 2:
-		// Drive the current address (nybble 2) to the external bus
-		c.as.ReadProgramCounter(2)
-		c.busBuffer.buf.BtoA()
-	case 4:
-		fallthrough
-	case 5:
-		if c.syncSent {
-			// Read the OPR from the external bus and write it into the instruction register
-			c.busBuffer.buf.AtoB()
-			c.inst.Write(c.clockCount - 4)
-			if c.clockCount == 5 {
-				// Now turn around and drive the instruction register OPR to the external bus
-				// To prevent bus collision warning. Ideally, we should make sure write count == 1 first
-				c.internalDataBus.Reset()
-				c.inst.ReadOPR()
-				c.busBuffer.buf.BtoA()
-				rlog.Infof("Driving OPR")
-			}
-		}
-	case 7:
+	if c.Decoder.Sync {
 		c.Sync = 0
+		c.inst.Reset()
+	} else {
+		c.Sync = 1
+	}
+
+	if c.Decoder.PCInc {
+		c.as.IncProgramCounter()
+	}
+
+	// All actions which output on the data bus need to go before the bus direction selection
+	if c.Decoder.PCOut {
+		c.as.ReadProgramCounter(uint64(c.Decoder.GetClockCount()))
+	}
+	if c.Decoder.AccOut {
+		c.alu.ReadAccumulator()
+	}
+	if c.Decoder.TempOut {
+		c.alu.ReadTemp()
+	}
+	if c.Decoder.ScratchPadOut {
+		c.regs.Select(c.Decoder.ScratchPadIndex)
+		c.regs.Read()
+	}
+
+	if c.Decoder.BusDir == common.DirOut {
+		c.busBuffer.buf.BtoA()
+	} else if c.Decoder.BusDir == common.DirIn {
+		c.busBuffer.buf.AtoB()
+	}
+
+	if c.Decoder.InstRegLoad {
+		// Read the OPR from the external bus and write it into the instruction register
+		c.inst.Write()
+	}
+
+	if c.Decoder.DecodeInstruction {
+		// Write the completed instruction to the decoder
+		c.Decoder.SetCurrentInstruction(c.inst.GetInstructionRegister())
+	}
+
+	// Special handling for turn-around cycles
+	if c.Decoder.BusTurnAround {
+		// To prevent bus collision warning. Ideally, we should make sure write count == 1 first
+		c.internalDataBus.Reset()
+	}
+	if c.Decoder.InstRegOut {
+		c.inst.ReadOPR()
+		if c.Decoder.BusTurnAround {
+			// Now turn around and drive the instruction register OPR to the external bus
+			c.busBuffer.buf.BtoA()
+			rlog.Infof("Driving OPR")
+		}
+	}
+
+	// Finally, any internal bus loads. Do this last to make sure the bus has valid data
+	if c.Decoder.AccLoad {
+		c.alu.WriteAccumulator()
+	}
+	if c.Decoder.TempLoad {
+		c.alu.WriteTemp()
+	}
+	if c.Decoder.PCLoad {
+		c.as.WriteProgramCounter(0, 0)
+		c.as.WriteProgramCounter(1, 0)
+		c.as.WriteProgramCounter(2, 0)
+	}
+	if c.Decoder.ScratchPadLoad4 {
+		c.regs.Select(c.Decoder.ScratchPadIndex)
+		c.regs.Write()
 	}
 }
 
