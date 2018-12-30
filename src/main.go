@@ -17,7 +17,8 @@ import (
 func main() {
 
 	// Programmatically change an rlog setting from within the program
-	os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
+	os.Setenv("RLOG_LOG_LEVEL", "TRACE")
+	os.Setenv("RLOG_TRACE_LEVEL", "0")
 	rlog.UpdateEnv()
 
 	rlog.Info("Welcome to the go 4004 emulator :)")
@@ -47,15 +48,15 @@ func main() {
 		image.Point{int(css.Margin), int(css.Margin) + romHeight},
 		image.Point{canvas.Width() - int(2*css.Margin), canvas.Height() - int(2*css.Margin) - romHeight}})
 
-	renderCount := 0
 	lastTime := time.Now()
+	renderCount := 0
 	wnd.MainLoop(func() {
 		currTime := time.Now()
-		if currTime.Sub(lastTime).Seconds() >= 0.01 {
+		if currTime.Sub(lastTime).Seconds() >= 0.5 {
 			lastTime = currTime
 			core.Step()
 			rom.Clock()
-			//DumpState(core, rom)
+			DumpState(core, rom)
 			// Render twice because glfw is double buffered
 			renderCount = 2
 		}
@@ -70,6 +71,14 @@ func main() {
 		}
 	})
 
+	// var loops = 1000000
+	// for i := 0; i < loops; i++ {
+	// 	core.Step()
+	// 	rom.Clock()
+	// }
+	// duration := time.Now().Sub(lastTime).Seconds()
+	// hz := float64(loops) / duration
+	// rlog.Infof("Elapsed time = %f seconds, or %3.1f kHz", duration, hz/1000)
 	rlog.Info("Goodbye")
 }
 

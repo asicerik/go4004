@@ -37,6 +37,7 @@ func (c *Core) Init() {
 	c.alu.Init(&c.internalDataBus, BusWidth)
 	c.as.Init(&c.internalDataBus, AddressWidth, 3)
 	c.inst.Init(&c.internalDataBus, BusWidth)
+	c.Decoder.Init()
 	c.Sync = 0
 }
 
@@ -52,6 +53,10 @@ func (c *Core) GetProgramCounter() uint64 {
 	return c.as.GetProgramCounter()
 }
 
+func (c *Core) getDecoderFlag(index int) int {
+	return c.Decoder.Flags[index].Value
+}
+
 func (c *Core) Step() {
 	c.internalDataBus.Reset()
 
@@ -60,56 +65,56 @@ func (c *Core) Step() {
 	// Defaults
 	c.busBuffer.buf.Disable()
 
-	if c.Decoder.Sync {
+	if c.getDecoderFlag(instruction.Sync) != 0 {
 		c.Sync = 0
 		c.inst.Reset()
 	} else {
 		c.Sync = 1
 	}
 
-	if c.Decoder.PCInc {
+	if c.getDecoderFlag(instruction.PCInc) != 0 {
 		c.as.IncProgramCounter()
 	}
 
 	// All actions which output on the data bus need to go before the bus direction selection
-	if c.Decoder.PCOut {
+	if c.getDecoderFlag(instruction.PCOut) != 0 {
 		c.as.ReadProgramCounter(uint64(c.Decoder.GetClockCount()))
 	}
-	if c.Decoder.AccOut {
+	if c.getDecoderFlag(instruction.AccOut) != 0 {
 		c.alu.ReadAccumulator()
 	}
-	if c.Decoder.TempOut {
+	if c.getDecoderFlag(instruction.TempOut) != 0 {
 		c.alu.ReadTemp()
 	}
-	if c.Decoder.ScratchPadOut {
-		c.regs.Select(c.Decoder.ScratchPadIndex)
+	if c.getDecoderFlag(instruction.ScratchPadOut) != 0 {
+		c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
 		c.regs.Read()
 	}
 
-	if c.Decoder.BusDir == common.DirOut {
+	if c.getDecoderFlag(instruction.BusDir) == common.DirOut {
 		c.busBuffer.buf.BtoA()
-	} else if c.Decoder.BusDir == common.DirIn {
+	} else if c.getDecoderFlag(instruction.BusDir) == common.DirIn {
 		c.busBuffer.buf.AtoB()
 	}
 
-	if c.Decoder.InstRegLoad {
+	if c.getDecoderFlag(instruction.InstRegLoad) != 0 {
 		// Read the OPR from the external bus and write it into the instruction register
 		c.inst.Write()
 	}
 
-	if c.Decoder.DecodeInstruction {
+	if c.getDecoderFlag(instruction.DecodeInstruction) != 0 {
 		// Write the completed instruction to the decoder
 		c.Decoder.SetCurrentInstruction(c.inst.GetInstructionRegister())
 	}
 
 	// Special handling for turn-around cycles
-	if c.Decoder.BusTurnAround {
+	if c.getDecoderFlag(instruction.BusTurnAround) != 0 {
 		// To prevent bus collision warning. Ideally, we should make sure write count == 1 first
 		c.internalDataBus.Reset()
 	}
-	if c.Decoder.InstRegOut {
+	if c.getDecoderFlag(instruction.InstRegOut) != 0 {
 		c.inst.ReadOPR()
-		if c.Decoder.BusTurnAround {
+		if c.getDecoderFlag(instruction.BusTurnAround) != 0 {
 			// Now turn around and drive the instruction register OPR to the external bus
 			c.busBuffer.buf.BtoA()
 			rlog.Infof("Driving OPR")
@@ -117,19 +122,19 @@ func (c *Core) Step() {
 	}
 
 	// Finally, any internal bus loads. Do this last to make sure the bus has valid data
-	if c.Decoder.AccLoad {
+	if c.getDecoderFlag(instruction.AccLoad) != 0 {
 		c.alu.WriteAccumulator()
 	}
-	if c.Decoder.TempLoad {
+	if c.getDecoderFlag(instruction.TempLoad) != 0 {
 		c.alu.WriteTemp()
 	}
-	if c.Decoder.PCLoad {
+	if c.getDecoderFlag(instruction.PCLoad) != 0 {
 		c.as.WriteProgramCounter(0, 0)
 		c.as.WriteProgramCounter(1, 0)
 		c.as.WriteProgramCounter(2, 0)
 	}
-	if c.Decoder.ScratchPadLoad4 {
-		c.regs.Select(c.Decoder.ScratchPadIndex)
+	if c.getDecoderFlag(instruction.ScratchPadLoad4) != 0 {
+		c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
 		c.regs.Write()
 	}
 }
