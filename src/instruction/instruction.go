@@ -1,6 +1,10 @@
 package instruction
 
-import "common"
+import (
+	"common"
+
+	"github.com/romana/rlog"
+)
 
 const InstructionWidth = 16
 
@@ -37,13 +41,19 @@ func (r *Instruction) Reset() {
 	r.writeCount = 0
 }
 
-func (r *Instruction) ReadOPR() {
+func (r *Instruction) ReadInstructionRegister(nybble uint64) {
+	value := r.instReg.ReadDirect()
+	if nybble == 1 {
+		value = value >> 4
+	}
+	r.busReg.WriteDirect(value)
 	r.busReg.Read()
 	r.drivingBus = true
 }
 
 func (r *Instruction) Write() {
 	r.busReg.Write()
+	rlog.Tracef(0, "Instruction: Write %X. writeCount=%d", r.busReg.ReadDirect(), r.writeCount)
 	if r.writeCount == 0 {
 		r.instReg.WriteDirect(r.busReg.ReadDirect() << 4)
 	} else {

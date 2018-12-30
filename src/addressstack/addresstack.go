@@ -29,7 +29,7 @@ func (s *AddressStack) Init(dataBus *common.Bus, width int, depth int) {
 
 	s.stackPointer = 0
 	s.dataBus = dataBus
-	s.pc.WriteDirect(0x123)
+	s.pc.WriteDirect(0)
 }
 
 // GetProgramCounter is for debugging
@@ -45,10 +45,19 @@ func (s *AddressStack) ReadProgramCounter(nybble uint64) {
 }
 
 // WriteProgramCounter writes the program counter one nybble at a time
-func (s *AddressStack) WriteProgramCounter(nybble uint64, in uint64) {
+func (s *AddressStack) WriteProgramCounterDirect(nybble uint64, in uint64) {
 	var mask uint64
 	mask = 0xf << (nybble * 4)
 	value := ((s.pc.Reg & ^mask) | (in << (nybble * 4) & mask)) & s.mask
+	s.pc.WriteDirect(value)
+}
+
+// WriteProgramCounter writes the program counter one nybble at a time
+func (s *AddressStack) WriteProgramCounter(nybble uint64) {
+	busValue := s.dataBus.Read()
+	var mask uint64
+	mask = 0xf << (nybble * 4)
+	value := ((s.pc.Reg & ^mask) | (busValue << (nybble * 4) & mask)) & s.mask
 	s.pc.WriteDirect(value)
 }
 

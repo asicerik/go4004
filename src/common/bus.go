@@ -23,6 +23,7 @@ func (b *Bus) Init(busWidth int, name string) {
 }
 
 func (b *Bus) Write(value uint64) {
+	rlog.Debugf("BUS: %s write=%X", b.Name, value)
 	b.data = value
 	b.writes++
 	if b.writes > 1 {

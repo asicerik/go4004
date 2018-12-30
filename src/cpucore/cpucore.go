@@ -6,8 +6,6 @@ import (
 	"common"
 	"instruction"
 	"scratchpad"
-
-	"github.com/romana/rlog"
 )
 
 const BusWidth = 4
@@ -62,7 +60,43 @@ func (c *Core) Calculate() {
 	c.Decoder.CalculateFlags()
 }
 
-func (c *Core) Clock() {
+// ClockIn clock in external inputs to the core
+func (c *Core) ClockIn() {
+	// Load the data from the external bus if needed
+	if c.getDecoderFlag(instruction.BusDir) == common.DirIn {
+		c.busBuffer.buf.AtoB()
+	}
+
+	c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
+
+	if c.getDecoderFlag(instruction.InstRegLoad) != 0 {
+		// Read the OPR from the external bus and write it into the instruction register
+		c.inst.Write()
+	}
+
+	if c.getDecoderFlag(instruction.DecodeInstruction) != 0 {
+		// Write the completed instruction to the decoder
+		c.Decoder.SetCurrentInstruction(c.inst.GetInstructionRegister())
+		c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
+	}
+
+	// Finally, any internal bus loads. Do this last to make sure the bus has valid data
+	if c.getDecoderFlag(instruction.AccLoad) != 0 {
+		c.alu.WriteAccumulator()
+	}
+	if c.getDecoderFlag(instruction.TempLoad) != 0 {
+		c.alu.WriteTemp()
+	}
+	if c.getDecoderFlag(instruction.PCLoad) != 0 {
+		c.as.WriteProgramCounter(uint64(c.getDecoderFlag(instruction.PCLoad) - 1))
+	}
+	if c.getDecoderFlag(instruction.ScratchPadLoad4) != 0 {
+		c.regs.Write()
+	}
+}
+
+// ClockOut clock external outputs to their respective busses/logic lines
+func (c *Core) ClockOut() {
 	c.internalDataBus.Reset()
 
 	c.Decoder.Clock()
@@ -92,55 +126,27 @@ func (c *Core) Clock() {
 		c.alu.ReadTemp()
 	}
 	if c.getDecoderFlag(instruction.ScratchPadOut) != 0 {
-		c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
 		c.regs.Read()
 	}
 
 	if c.getDecoderFlag(instruction.BusDir) == common.DirOut {
 		c.busBuffer.buf.BtoA()
-	} else if c.getDecoderFlag(instruction.BusDir) == common.DirIn {
-		c.busBuffer.buf.AtoB()
 	}
 
-	if c.getDecoderFlag(instruction.InstRegLoad) != 0 {
-		// Read the OPR from the external bus and write it into the instruction register
-		c.inst.Write()
-	}
+	// // Special handling for turn-around cycles
+	// if c.getDecoderFlag(instruction.BusTurnAround) != 0 {
+	// 	// To prevent bus collision warning. Ideally, we should make sure write count == 1 first
+	// 	c.internalDataBus.Reset()
+	// }
 
-	if c.getDecoderFlag(instruction.DecodeInstruction) != 0 {
-		// Write the completed instruction to the decoder
-		c.Decoder.SetCurrentInstruction(c.inst.GetInstructionRegister())
-	}
-
-	// Special handling for turn-around cycles
-	if c.getDecoderFlag(instruction.BusTurnAround) != 0 {
-		// To prevent bus collision warning. Ideally, we should make sure write count == 1 first
-		c.internalDataBus.Reset()
-	}
 	if c.getDecoderFlag(instruction.InstRegOut) != 0 {
-		c.inst.ReadOPR()
-		if c.getDecoderFlag(instruction.BusTurnAround) != 0 {
-			// Now turn around and drive the instruction register OPR to the external bus
-			c.busBuffer.buf.BtoA()
-			rlog.Infof("Driving OPR")
-		}
-	}
-
-	// Finally, any internal bus loads. Do this last to make sure the bus has valid data
-	if c.getDecoderFlag(instruction.AccLoad) != 0 {
-		c.alu.WriteAccumulator()
-	}
-	if c.getDecoderFlag(instruction.TempLoad) != 0 {
-		c.alu.WriteTemp()
-	}
-	if c.getDecoderFlag(instruction.PCLoad) != 0 {
-		c.as.WriteProgramCounter(0, 0)
-		c.as.WriteProgramCounter(1, 0)
-		c.as.WriteProgramCounter(2, 0)
-	}
-	if c.getDecoderFlag(instruction.ScratchPadLoad4) != 0 {
-		c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
-		c.regs.Write()
+		c.inst.ReadInstructionRegister(uint64(c.getDecoderFlag(instruction.InstRegOut)) - 1)
+		// if c.getDecoderFlag(instruction.BusTurnAround) != 0 {
+		// 	// Now turn around and drive the instruction register OPR to the external bus
+		// 	c.inst.ReadOPR()
+		// 	c.busBuffer.buf.BtoA()
+		// 	rlog.Infof("Driving OPR")
+		// }
 	}
 }
 

@@ -35,7 +35,9 @@ func (r *Registers) Read() {
 }
 
 func (r *Registers) Select(index int) {
-	rlog.Debugf("Selected ScratchPad Register %d", index)
+	if r.index != index {
+		rlog.Debugf("Selected ScratchPad Register %d", index)
+	}
 	r.index = index
 }
 

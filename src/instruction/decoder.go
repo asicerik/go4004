@@ -24,6 +24,8 @@ type Decoder struct {
 	instPhase       int // which instruction phase are we in
 	syncSent        bool
 	currInstruction int
+	dblInstruction  int  // The current instruction requires two complete cycles
+	inhibitPCInc    bool // Inhibit the program counter increment for jumps, etc.
 }
 
 const (
@@ -31,10 +33,10 @@ const (
 	Sync              = iota // We should output the SYNC signal
 	BusDir                   // External data bus direction
 	BusTurnAround            // If true, swap the bus direction after the first action
-	InstRegOut               // Instruction register should drive the bus
+	InstRegOut               // Instruction register should drive the bus (value is the nybble to load)
 	InstRegLoad              // Load the instruction register i/o buffer
 	PCOut                    // Program Counter should drive the bus
-	PCLoad                   // Load the program counter from the internal bus
+	PCLoad                   // Load the program counter from the internal bus (value is the nybble to load)
 	PCInc                    // Increment the program counter
 	AccOut                   // Accumulator register should drive the bus
 	AccLoad                  // Load the accumulator from the internal bus
@@ -94,7 +96,7 @@ func (d *Decoder) writeFlag(index int, value int) {
 	flag.Changed = true // we always set changed so the UI can show the write
 	flag.Value = value
 	d.Flags[index] = flag
-	rlog.Tracef(1, "Wrote Flag: Name=%s, value=%d. ClkCnt=%d", flag.Name, d.Flags[index].Value, d.clockCount)
+	rlog.Tracef(0, "Wrote Flag: Name=%s, value=%d. ClkCnt=%d", flag.Name, d.Flags[index].Value, d.clockCount)
 }
 
 // Clock updates flip flops on rising edge of the clock
@@ -104,6 +106,8 @@ func (d *Decoder) Clock() {
 		d.clockCount++
 	} else {
 		d.clockCount = 0
+	}
+	if d.Flags[Sync].Value == 1 {
 		d.syncSent = true
 	}
 }
@@ -115,7 +119,9 @@ func (d *Decoder) CalculateFlags() {
 		// Handle startup condition. Make sure we send sync before incrementing
 		// the program counter
 		if d.syncSent {
-			d.writeFlag(PCInc, 1)
+			if !d.inhibitPCInc {
+				d.writeFlag(PCInc, 1)
+			}
 		}
 	}
 
@@ -132,16 +138,18 @@ func (d *Decoder) CalculateFlags() {
 		// Drive the current address (nybble 2) to the external bus
 		d.writeFlag(BusDir, common.DirOut)
 		d.writeFlag(PCOut, 1)
-	case 3:
-		fallthrough
 	case 4:
 		if d.syncSent {
 			// Read the OPR from the external bus and write it into the instruction register
 			d.writeFlag(BusDir, common.DirIn)
-			d.writeFlag(InstRegLoad, 1)
+			if d.clockCount == 4 {
+				d.writeFlag(InstRegLoad, 1)
+			}
 		}
 	case 5:
 		if d.syncSent {
+			d.writeFlag(BusDir, common.DirIn)
+			d.writeFlag(InstRegLoad, 1)
 			d.writeFlag(DecodeInstruction, 1)
 		}
 	case 7:
@@ -155,10 +163,14 @@ func (d *Decoder) CalculateFlags() {
 
 // SetCurrentInstruction set the current instruction from the instruction register
 func (d *Decoder) SetCurrentInstruction(inst uint64) (err error) {
-	if inst != 0 {
-		rlog.Debugf("SetCurrentInstruction: %02X", inst)
+	if d.dblInstruction == 0 {
+		if inst != 0 {
+			rlog.Debugf("SetCurrentInstruction: %02X", inst)
+		}
+		d.currInstruction = int(inst)
+	} else {
+		d.currInstruction = d.dblInstruction
 	}
-	d.currInstruction = int(inst)
 	return d.decodeCurrentInstruction()
 }
 
@@ -173,34 +185,82 @@ func (d *Decoder) decodeCurrentInstruction() (err error) {
 	// }
 	case JUN:
 		rlog.Debug("JUN command decoded")
-		// FIXME : Need to load the address
-		d.writeFlag(ScratchPadIndex, 0)
-		d.writeFlag(ScratchPadOut, 1)
-		d.writeFlag(PCLoad, 1)
+		// Are we on the first phase?
+		if d.dblInstruction == 0 {
+			if d.clockCount == 5 {
+				d.writeFlag(InstRegOut, 1)
+			} else if d.clockCount == 6 {
+				// Store the upper 4 bits in the temp register
+				d.writeFlag(TempLoad, 1)
+				d.dblInstruction = d.currInstruction
+				d.currInstruction = -1
+			}
+		} else {
+			if d.clockCount == 5 {
+				// Block the PC increment
+				d.inhibitPCInc = true
+				// Output the lower 4 bits of the instruction register
+				// It contains the lowest 4 bits of the address
+				d.writeFlag(InstRegOut, 1)
+			} else if d.clockCount == 6 {
+				// Load the lowest 4 bits into the PC
+				d.writeFlag(PCLoad, 1)
+				// Output the higher 4 bits of the instruction register
+				// It contains the middle 4 bits of the address
+				d.writeFlag(InstRegOut, 2)
+			} else if d.clockCount == 7 {
+				// Load the middle 4 bits into the PC
+				d.writeFlag(PCLoad, 2)
+				// Output the temp register
+				// It contains the middle 4 bits of the address
+				d.writeFlag(TempOut, 1)
+			} else if d.clockCount == 0 {
+				// NOTE: we have already started outputting the PC onto the bus
+				// for the next cycle, but we can still update the highest bits
+				// since they go out last
+				// Load the highest 4 bits into the PC
+				d.writeFlag(PCLoad, 3)
+				d.dblInstruction = 0
+				d.currInstruction = -1
+				// Unblock the PC increment
+				d.inhibitPCInc = false
+			}
+		}
+
 	case XCH:
 		rlog.Debug("XCH command decoded")
 		// Exchange the accumulator and the scratchpad register
 		if d.clockCount == 5 {
-			// Load the current scratchpad register into the temp register
+			// Output the current scratchpad register
 			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
 			d.writeFlag(ScratchPadOut, 1)
-			d.writeFlag(TempLoad, 1)
 		} else if d.clockCount == 6 {
-			// Load the accumulator into the current scratchpad register
-			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
-			d.writeFlag(ScratchPadLoad4, 1)
+			// Load the data from the previous into the Temp register
+			d.writeFlag(TempLoad, 1)
+
+			// Output the accumulator
 			d.writeFlag(AccOut, 1)
 		} else if d.clockCount == 7 {
-			// Load the temp register into the accumulator
+			// Load the data from the previous into the scratchpad register
+			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
+			d.writeFlag(ScratchPadLoad4, 1)
+
+			// Output the temp register
 			d.writeFlag(TempOut, 1)
+		} else if d.clockCount == 0 {
+			// Load the data from the previous into the accumulator register
 			d.writeFlag(AccLoad, 1)
 			d.currInstruction = -1
 		}
+
 	case LDM:
 		rlog.Debug("LDM command decoded")
-		d.writeFlag(AccLoad, 1)
-		d.writeFlag(InstRegOut, 1)
-		d.currInstruction = -1
+		if d.clockCount == 5 {
+			d.writeFlag(InstRegOut, 1)
+		} else if d.clockCount == 6 {
+			d.writeFlag(AccLoad, 1)
+			d.currInstruction = -1
+		}
 	}
 	return err
 }

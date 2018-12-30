@@ -3,8 +3,6 @@ package rom4001
 import (
 	"common"
 	"interfaces"
-
-	"github.com/romana/rlog"
 )
 
 const BusWidth = 4
@@ -21,6 +19,7 @@ type Rom4001 struct {
 	ioBuf          common.Buffer     // Bus i/o buffer
 	cm             *int              // CM-ROM select from CPU
 	sync           *int              // SYNC signal from CPU
+	syncLatched    int               // SYNC latched with clock
 	syncSeen       bool              // Have we seen the sync flag?
 	clockCount     int               // Internal counter for clock timing
 	instPhase      int               // Instruction phase
@@ -55,7 +54,7 @@ func (r *Rom4001) Init(busExt *common.Bus, sync *int) {
 		r.data[i] = uint8(i)
 	}
 	r.calculateValueRegisters()
-	r.chipID = 1
+	r.chipID = 0
 }
 
 func (r *Rom4001) calculateValueRegisters() {
@@ -83,7 +82,7 @@ func (r *Rom4001) calculateValueRegisters() {
 }
 
 func (r *Rom4001) GetClockCount() int {
-	return r.instPhase
+	return r.clockCount
 }
 
 func (r *Rom4001) Reset() {
@@ -93,48 +92,55 @@ func (r *Rom4001) Reset() {
 func (r *Rom4001) Calculate() {
 }
 
-func (r *Rom4001) Clock() {
+// ClockIn clock in external inputs to the core
+func (r *Rom4001) ClockIn() {
 	r.updateInternal()
 
-	r.instPhase = r.clockCount
-	if *r.sync == 0 {
-		r.syncSeen = true
-		r.clockCount = 0
-		r.addressReg.WriteDirect(0)
-	} else {
-		if r.clockCount < 7 {
-			r.clockCount++
-		} else {
-			r.clockCount = 0
-		}
-	}
 }
 
 func (r *Rom4001) updateInternal() {
-	// Defaults
-	r.ioBuf.Disable()
+	r.syncLatched = *r.sync
+	r.syncSeen = r.syncSeen || (r.syncLatched == 0)
 	if !r.syncSeen {
 		return
 	}
 
 	switch r.clockCount {
 	case 0:
-		// Copy from the external bus to the internal bus
-		r.ioBuf.BtoA()
 		r.addressReg.WriteDirect(r.addressReg.ReadDirect() | (r.busInt.Read() << (uint(r.clockCount) * 4)))
-		rlog.Debugf("ROM %d: Wrote address register (n0). Curr value=%X", r.chipID, r.addressReg.ReadDirect())
+		// rlog.Debugf("ROM %d: Wrote address register (n0). Curr value=%X", r.chipID, r.addressReg.ReadDirect())
+	case 1:
+		r.addressReg.WriteDirect(r.addressReg.ReadDirect() | (r.busInt.Read() << (uint(r.clockCount) * 4)))
+		// rlog.Debugf("ROM %d: Wrote address register (n1). Curr value=%X", r.chipID, r.addressReg.ReadDirect())
+	case 2:
+		r.addressReg.WriteDirect(r.addressReg.ReadDirect() | (r.busInt.Read() << (uint(r.clockCount) * 4)))
+		// rlog.Debugf("ROM %d: Wrote address register (n2). Curr value=%X", r.chipID, r.addressReg.ReadDirect())
+	}
+}
+
+// ClockOut clock external outputs to their respective busses/logic lines
+func (r *Rom4001) ClockOut() {
+	r.busInt.Reset()
+	r.instPhase = r.clockCount
+
+	// Defaults
+	r.ioBuf.Disable()
+
+	if !r.syncSeen {
+		return
+	}
+
+	switch r.clockCount {
+	case 7:
+		fallthrough
+	case 0:
+		fallthrough
 	case 1:
 		// Copy from the external bus to the internal bus
 		r.ioBuf.BtoA()
-		r.addressReg.WriteDirect(r.addressReg.ReadDirect() | (r.busInt.Read() << (uint(r.clockCount) * 4)))
-		rlog.Debugf("ROM %d: Wrote address register (n1). Curr value=%X", r.chipID, r.addressReg.ReadDirect())
 	case 2:
-		// Copy from the external bus to the internal bus
-		r.ioBuf.BtoA()
-		r.addressReg.WriteDirect(r.addressReg.ReadDirect() | (r.busInt.Read() << (uint(r.clockCount) * 4)))
-		rlog.Debugf("ROM %d: Wrote address register (n2). Curr value=%X", r.chipID, r.addressReg.ReadDirect())
 		// Reset the external bus since this is a turn-around cycle
-		r.busExt.Reset()
+		// r.busExt.Reset()
 		fallthrough
 	case 3:
 		romID := (r.addressReg.ReadDirect() >> 8) & 0xf
@@ -148,9 +154,19 @@ func (r *Rom4001) updateInternal() {
 			if r.clockCount == 2 {
 				data = data >> 4
 			}
-			rlog.Debugf("ROM %d: writing %X to bus", r.chipID, data&0xf)
+			// rlog.Debugf("ROM %d: writing %X to bus", r.chipID, data&0xf)
 			r.busInt.Write(data & 0xf)
 			r.ioBuf.AtoB()
+		}
+	}
+	if r.syncLatched == 0 {
+		r.clockCount = 0
+		r.addressReg.WriteDirect(0)
+	} else {
+		if r.clockCount < 7 {
+			r.clockCount++
+		} else {
+			r.clockCount = 0
 		}
 	}
 }

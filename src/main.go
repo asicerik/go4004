@@ -57,8 +57,10 @@ func main() {
 			lastTime = currTime
 			DumpState(core, rom)
 			core.Calculate()
-			core.Clock()
-			rom.Clock()
+			core.ClockIn()
+			rom.ClockIn()
+			core.ClockOut()
+			rom.ClockOut()
 			// Render twice because glfw is double buffered
 			renderCount = 2
 		}
