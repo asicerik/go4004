@@ -23,7 +23,7 @@ func (b *Bus) Init(busWidth int, name string) {
 }
 
 func (b *Bus) Write(value uint64) {
-	rlog.Debugf("BUS: %s write=%X, writesPre=%d. this=%p", b.Name, value, b.writes, b)
+	rlog.Tracef(0, "BUS: %s write=%X, writesPre=%d. this=%p", b.Name, value, b.writes, b)
 	b.data = value
 	b.writes++
 	if b.writes > 1 {

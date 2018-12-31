@@ -19,7 +19,7 @@ type Renderer struct {
 
 	// Child Renderers
 	dataBusRenderer common.BusRenderer
-	ioBufRenderer   common.BufferRenderer
+	busBufRenderer  common.BufferRenderer
 	addrRenderer    common.RegisterRenderer
 	dataRenderers   []common.RegisterRenderer
 }
@@ -51,7 +51,7 @@ func (r *Renderer) InitRender(rom *Rom4001, canvas *canvas.Canvas, bounds image.
 		r.dataRenderers[i].ShowUpdates = false
 	}
 
-	r.ioBufRenderer.InitRender(&r.rom.ioBuf, image.Rectangle{
+	r.busBufRenderer.InitRender(&r.rom.busBuf, image.Rectangle{
 		image.Point{r.bounds.Min.X, r.bounds.Max.Y - r.busHeight - int(css.RegisterHeight)},
 		image.Point{r.bounds.Max.X, r.bounds.Max.Y - r.busHeight}})
 
@@ -71,7 +71,7 @@ func (r *Renderer) Render(canvas *canvas.Canvas) {
 
 	r.dataBusRenderer.Render(canvas)
 	r.addrRenderer.Render(canvas)
-	r.ioBufRenderer.Render(canvas)
+	r.busBufRenderer.Render(canvas)
 	for i := range r.dataRenderers {
 		r.dataRenderers[i].Render(canvas)
 	}

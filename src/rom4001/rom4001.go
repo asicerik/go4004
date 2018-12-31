@@ -19,7 +19,7 @@ type Rom4001 struct {
 	chipID         int               // Hard-coded in metal Rom ID
 	busExt         *common.Bus       // External Data Bus for address/data
 	busInt         common.Bus        // Internal Data Bus for address/data
-	ioBuf          common.Buffer     // Bus i/o buffer
+	busBuf         common.Buffer     // Bus i/o buffer
 	cm             *int              // CM-ROM select from CPU
 	sync           *int              // SYNC signal from CPU
 	syncLatched    int               // SYNC latched with clock
@@ -31,37 +31,42 @@ type Rom4001 struct {
 	outputReg      common.Register   // Output data register
 	chipSelected   bool              // We are targeted for this read
 	valueRegisters []common.Register // The values near the current address
+	ioBus          *common.Bus       // Input/Output bus for general purpose IO
+	srcDetected    bool              // SRC command was detected
+	srcRomID       uint64            // The ROM ID sent in the SRC command
+	ioOpDetected   bool              // IO Operation was detected
 }
 
-func (r *Rom4001) Init(busExt *common.Bus, sync *int) {
+func (r *Rom4001) Init(busExt *common.Bus, sync *int, cm *int) {
 	r.busExt = busExt
 	r.sync = sync
+	r.cm = cm
 	r.busInt.Init(BusWidth, "ROM Internal")
 	r.addressReg.Init(nil, 12, "Addr = ")
 	r.instReg.Init(nil, 8, "Inst = ")
 	r.outputReg.Init(&r.busInt, 4, "")
-	r.ioBuf.Init(&r.busInt, r.busExt, BusWidth, "I/O BUF")
+	r.busBuf.Init(&r.busInt, r.busExt, BusWidth, "I/O BUF")
 	r.data = make([]uint8, Depth)
 	r.valueRegisters = make([]common.Register, 3)
 	for i := range r.valueRegisters {
 		r.valueRegisters[i].Init(nil, 8, "      ")
 	}
 
-	// Load a sample program into memory
-	r.data[0] = instruction.LDM | 5           // Load 5 into the accumulator
-	r.data[1] = instruction.XCH | 2           // Swap accumulator with r2
-	r.data[2] = instruction.LDM | 0xC         // Load C into the accumulator
-	r.data[3] = instruction.NOP               // NOP
-	r.data[4] = instruction.FIM_SRC | (2) | 1 // Send address in r2,r3 to ROM/RAM
-	r.data[5] = instruction.WRR               // Write accumulator to ROM
-	r.data[6] = 0x40                          // JUN 0
-	r.data[7] = 0x00                          // JUN 0 (cont)
-	// Set the rest to incrementing values
-	for i := 8; i < len(r.data); i++ {
-		r.data[i] = uint8(i)
-	}
 	r.calculateValueRegisters()
 	r.chipID = 0
+}
+
+func (r *Rom4001) SetIOBus(bus *common.Bus) {
+	r.ioBus = bus
+}
+
+func (r *Rom4001) LoadProgram(data []uint8) {
+	copy(r.data, data)
+	r.calculateValueRegisters()
+}
+
+func (r *Rom4001) SetChipID(id int) {
+	r.chipID = id
 }
 
 func (r *Rom4001) calculateValueRegisters() {
@@ -115,35 +120,86 @@ func (r *Rom4001) updateInternal() {
 	switch r.clockCount {
 	case 0:
 		// Copy from the external bus to the internal bus
-		r.ioBuf.BtoA()
+		r.busBuf.BtoA()
 		r.addressReg.WriteDirect((r.busInt.Read() << (uint(r.clockCount) * 4)))
-		rlog.Debugf("ROM %d: Wrote address register (n0). Curr value=%03X", r.chipID, r.addressReg.ReadDirect())
+		rlog.Tracef(0, "ROM %d: Wrote address register (n0). Curr value=%03X", r.chipID, r.addressReg.ReadDirect())
 	case 1:
 		// Copy from the external bus to the internal bus
-		r.ioBuf.BtoA()
+		r.busBuf.BtoA()
 		r.addressReg.WriteDirect(r.addressReg.ReadDirect() | (r.busInt.Read() << (uint(r.clockCount) * 4)))
-		rlog.Debugf("ROM %d: Wrote address register (n1). Curr value=%03X", r.chipID, r.addressReg.ReadDirect())
+		rlog.Tracef(0, "ROM %d: Wrote address register (n1). Curr value=%03X", r.chipID, r.addressReg.ReadDirect())
 	case 2:
 		// Copy from the external bus to the internal bus
-		r.ioBuf.BtoA()
+		r.busBuf.BtoA()
 		r.addressReg.WriteDirect(r.addressReg.ReadDirect() | (r.busInt.Read() << (uint(r.clockCount) * 4)))
-		rlog.Debugf("ROM %d: Wrote address register (n2). Curr value=%03X", r.chipID, r.addressReg.ReadDirect())
+		rlog.Tracef(0, "ROM %d: Wrote address register (n2). Curr value=%03X", r.chipID, r.addressReg.ReadDirect())
 		romID := (r.addressReg.ReadDirect() >> 8) & 0xf
-		r.chipSelected = romID == uint64(r.chipID)
+		r.chipSelected = (romID == uint64(r.chipID)) && (*(r.cm) == 0)
 		if r.chipSelected {
-			rlog.Debugf("ROM %d: Selected for read access", r.chipID)
+			rlog.Tracef(0, "ROM %d: Selected for read access", r.chipID)
 		}
 	case 3:
 		// Copy from the external bus to the internal bus
 		// if we are not writing the bus
 		if !r.chipSelected {
-			r.ioBuf.BtoA()
+			r.busBuf.BtoA()
 		}
-		if r.busExt.Read() == (instruction.FIM_SRC >> 4) {
+		// Check for IO ops before we update the SRC flag
+		if r.busInt.Read() == (instruction.WRR >> 4) {
+			if r.srcDetected {
+				rlog.Debug("ROM: IO instruction detected")
+				r.ioOpDetected = true
+			} else {
+				r.ioOpDetected = false
+			}
+		} else {
+			r.ioOpDetected = false
+		}
+
+		if r.busInt.Read() == (instruction.FIM_SRC >> 4) {
 			rlog.Debug("ROM: FIM/SRC instruction detected")
+			r.srcDetected = true
+		} else {
+			r.srcDetected = false
 		}
 	case 4:
+		// Copy from the external bus to the internal bus
+		// if we are not writing the bus
+		if !r.chipSelected {
+			r.busBuf.BtoA()
+		}
+		if r.srcDetected {
+			if (r.busInt.Read() & 0x1) == 0 {
+				rlog.Debug("ROM: FIM instruction verified")
+			} else {
+				rlog.Debug("ROM: SRC instruction verified")
+			}
+		}
 		r.instReg.WriteDirect(r.busInt.Read())
+	case 6:
+		if r.srcDetected {
+			// Copy the data to the inernal bus
+			r.busBuf.BtoA()
+			r.srcRomID = r.busInt.Read() & 0xf
+			if int(r.srcRomID) != r.chipID {
+				rlog.Debugf("ROM: SRC command was NOT for us. Our chipID=%02X, cmd chipID=%02X",
+					r.chipID, r.srcRomID)
+				r.srcDetected = false
+			} else {
+				rlog.Debugf("ROM: SRC command WAS for us. Our chipID=%02X",
+					r.chipID)
+			}
+		}
+		if r.ioOpDetected {
+			// Copy the data to the inernal bus
+			r.busBuf.BtoA()
+			cmd := r.instReg.ReadDirect()
+			switch cmd {
+			case instruction.WRR & 0xf:
+				// IO Write
+				r.ioBus.Write(r.busInt.Read())
+			}
+		}
 	}
 }
 
@@ -153,7 +209,7 @@ func (r *Rom4001) ClockOut() {
 	r.instPhase = r.clockCount
 
 	// Defaults
-	r.ioBuf.Disable()
+	r.busBuf.Disable()
 
 	if !r.syncSeen {
 		return
@@ -165,8 +221,9 @@ func (r *Rom4001) ClockOut() {
 	case 0:
 		fallthrough
 	case 1:
-		// // Copy from the external bus to the internal bus
-		// r.ioBuf.BtoA()
+		// Set the direction from the external bus to the internal bus
+		// The actual copy happens in ClockIn()
+		r.busBuf.SetDirBtoA()
 	case 2:
 		// Reset the external bus since this is a turn-around cycle
 		// r.busExt.Reset()
@@ -183,10 +240,20 @@ func (r *Rom4001) ClockOut() {
 			}
 			// rlog.Debugf("ROM %d: writing %X to bus", r.chipID, data&0xf)
 			r.busInt.Write(data & 0xf)
-			r.ioBuf.AtoB()
+			r.busBuf.AtoB()
 		} else {
 			// Copy from the external bus to the internal bus
-			// r.ioBuf.BtoA()
+			// r.busBuf.BtoA()
+		}
+	case 5:
+		if r.ioOpDetected {
+			cmd := r.instReg.ReadDirect()
+			switch cmd {
+			case instruction.RDR & 0xf:
+				// IO Read
+				r.busInt.Write(r.ioBus.Read() & 0xf)
+				r.busBuf.AtoB()
+			}
 		}
 	}
 	if r.syncLatched == 0 {
