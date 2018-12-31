@@ -6,6 +6,7 @@ import (
 	"github.com/romana/rlog"
 )
 
+const JCN = 0x10 // Jump conditional
 const JUN = 0x40 // Jump unconditional
 const LDM = 0xD0 // Load direct into accumulator
 const XCH = 0xB0 // Exchange the accumulator and scratchpad register
@@ -47,6 +48,7 @@ const (
 	ScratchPadLoad8          // Load 8 bits into the currently selected scratchpad registers
 	ScratchPadOut            // Currently selected scratchpad register should drive the bus
 	DecodeInstruction        // The instruction register is ready to be decoded
+	EvalulateJCN             // Evaluate the condition flags for a JCN instruction
 	END                      // Marker for end of list
 )
 
@@ -72,6 +74,7 @@ func (d *Decoder) Init() {
 	d.Flags[ScratchPadLoad8] = DecoderFlag{"SPL8", 0, false}
 	d.Flags[ScratchPadOut] = DecoderFlag{"SPO ", 0, false}
 	d.Flags[DecodeInstruction] = DecoderFlag{"DEC ", 0, false}
+	d.Flags[EvalulateJCN] = DecoderFlag{"EJCN", 0, false}
 }
 
 func (d *Decoder) GetClockCount() int {
@@ -157,12 +160,12 @@ func (d *Decoder) CalculateFlags() {
 	}
 	// Continue to decode instructions after clock 5
 	if d.clockCount != 5 && d.currInstruction > 0 {
-		d.decodeCurrentInstruction()
+		d.decodeCurrentInstruction(false)
 	}
 }
 
 // SetCurrentInstruction set the current instruction from the instruction register
-func (d *Decoder) SetCurrentInstruction(inst uint64) (err error) {
+func (d *Decoder) SetCurrentInstruction(inst uint64, evalResult bool) (err error) {
 	if d.dblInstruction == 0 {
 		if inst != 0 {
 			rlog.Debugf("SetCurrentInstruction: %02X", inst)
@@ -171,22 +174,29 @@ func (d *Decoder) SetCurrentInstruction(inst uint64) (err error) {
 	} else {
 		d.currInstruction = d.dblInstruction
 	}
-	return d.decodeCurrentInstruction()
+	return d.decodeCurrentInstruction(evalResult)
 }
 
-func (d *Decoder) decodeCurrentInstruction() (err error) {
-
-	switch d.currInstruction & 0xf0 {
+func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
+	inst := d.currInstruction & 0xf0
+	switch inst {
 	// 	// This is special case code in the core as we will need to turn the bus around
 	// 	if d.clockCount == 5 {
 	// 		d.InstRegOut = true
 	// 		d.BusTurnAround = true
 	// 	}
 	// }
+	case JCN:
+		fallthrough
 	case JUN:
-		rlog.Debug("JUN command decoded")
 		// Are we on the first phase?
 		if d.dblInstruction == 0 {
+			if inst == JCN {
+				rlog.Debug("JCN command decoded")
+				d.writeFlag(EvalulateJCN, 1)
+			} else if inst == JUN {
+				rlog.Debug("JUN command decoded")
+			}
 			if d.clockCount == 5 {
 				d.writeFlag(InstRegOut, 1)
 			} else if d.clockCount == 6 {
@@ -197,11 +207,22 @@ func (d *Decoder) decodeCurrentInstruction() (err error) {
 			}
 		} else {
 			if d.clockCount == 5 {
-				// Block the PC increment
-				d.inhibitPCInc = true
-				// Output the lower 4 bits of the instruction register
-				// It contains the lowest 4 bits of the address
-				d.writeFlag(InstRegOut, 1)
+				// If this is a conditional jump, evaluate the condition here
+				blockJump := false
+				if inst == JCN {
+					blockJump = !evalResult
+				}
+				if !blockJump {
+					// Block the PC increment
+					d.inhibitPCInc = true
+					// Output the lower 4 bits of the instruction register
+					// It contains the lowest 4 bits of the address
+					d.writeFlag(InstRegOut, 1)
+				} else {
+					rlog.Info("Conditional jump was not taken")
+					d.dblInstruction = 0
+					d.currInstruction = -1
+				}
 			} else if d.clockCount == 6 {
 				// Load the lowest 4 bits into the PC
 				d.writeFlag(PCLoad, 1)

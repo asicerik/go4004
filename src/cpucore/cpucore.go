@@ -6,6 +6,8 @@ import (
 	"common"
 	"instruction"
 	"scratchpad"
+
+	"github.com/romana/rlog"
 )
 
 const BusWidth = 4
@@ -24,6 +26,7 @@ type Core struct {
 	busBuffer       ExternalBusBuffer
 	as              addressstack.AddressStack
 	inst            instruction.Instruction
+	evaluationFn    func() bool // Conditional jump evaluation function
 }
 
 // Init create and initialize all the core components
@@ -75,8 +78,14 @@ func (c *Core) ClockIn() {
 	}
 
 	if c.getDecoderFlag(instruction.DecodeInstruction) != 0 {
+		evalResult := true
+		if c.evaluationFn != nil {
+			evalResult = c.evaluationFn()
+		}
+		c.evaluationFn = nil
+
 		// Write the completed instruction to the decoder
-		c.Decoder.SetCurrentInstruction(c.inst.GetInstructionRegister())
+		c.Decoder.SetCurrentInstruction(c.inst.GetInstructionRegister(), evalResult)
 		c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
 	}
 
@@ -148,6 +157,30 @@ func (c *Core) ClockOut() {
 		// 	rlog.Infof("Driving OPR")
 		// }
 	}
+
+	// Condtitional evaluation flags
+	if c.getDecoderFlag(instruction.EvalulateJCN) != 0 {
+		c.evaluationFn = c.evalulateJCN
+	}
+}
+
+// If these functions return false, conditional jumps are blocked
+func (c *Core) evalulateJCN() bool {
+	// Not sure how the real CPU does this, so I am cutting corners here
+	condititonFlags := c.alu.ReadTempDirect()
+	aluFlags := c.alu.ReadFlags()
+	// testBitFlag := int(condititonFlags & 0x1)
+	carryBitFlag := int((condititonFlags >> 1) & 0x1)
+	zeroBitFlag := int((condititonFlags >> 2) & 0x1)
+	invertBitFlag := int((condititonFlags >> 3) & 0x1)
+	result := true
+	if invertBitFlag == 0 {
+		result = carryBitFlag == aluFlags.Carry || zeroBitFlag == aluFlags.Zero
+	} else {
+		result = carryBitFlag != aluFlags.Carry || zeroBitFlag != aluFlags.Zero
+	}
+	rlog.Debugf("evalulateJCN: conditionalFlags=%X, aluFlags=%v. Result=%v", condititonFlags, aluFlags, result)
+	return result
 }
 
 // ExternalBusBuffer is the buffer that connects the internal and external data busses

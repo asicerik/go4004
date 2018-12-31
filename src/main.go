@@ -53,7 +53,7 @@ func main() {
 	renderCount := 0
 	wnd.MainLoop(func() {
 		currTime := time.Now()
-		if currTime.Sub(lastTime).Seconds() >= 0.5 {
+		if currTime.Sub(lastTime).Seconds() >= 0.1 {
 			lastTime = currTime
 			DumpState(core, rom)
 			core.Calculate()

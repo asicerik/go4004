@@ -15,6 +15,12 @@ type Alu struct {
 	mask         uint64
 	accBus       common.Bus
 	tempBus      common.Bus
+	flags        AluFlags
+}
+
+type AluFlags struct {
+	Zero  int // The accumulator is zero
+	Carry int // The carry bit is set
 }
 
 // Init initialize the ALU
@@ -32,6 +38,12 @@ func (a *Alu) Init(dataBus *common.Bus, width int) {
 func (a *Alu) WriteAccumulator() {
 	rlog.Debugf("Wrote Accumulator with 0x%X", a.dataBus.Read())
 	a.accumulator.Write()
+	accum := a.accumulator.ReadDirect()
+	if accum == 0 {
+		a.flags.Zero = 1
+	} else {
+		a.flags.Zero = 0
+	}
 }
 
 func (a *Alu) ReadAccumulator() {
@@ -45,4 +57,16 @@ func (a *Alu) WriteTemp() {
 
 func (a *Alu) ReadTemp() {
 	a.tempRegister.Read()
+}
+
+func (a *Alu) ReadAccumulatorDirect() uint64 {
+	return a.accumulator.ReadDirect()
+}
+
+func (a *Alu) ReadTempDirect() uint64 {
+	return a.tempRegister.ReadDirect()
+}
+
+func (a *Alu) ReadFlags() AluFlags {
+	return a.flags
 }
