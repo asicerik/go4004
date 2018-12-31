@@ -2,6 +2,8 @@ package addressstack
 
 import (
 	"common"
+
+	"github.com/romana/rlog"
 )
 
 // AddressStack contains the program counter, stack pointer and stack address registers
@@ -50,6 +52,7 @@ func (s *AddressStack) WriteProgramCounterDirect(nybble uint64, in uint64) {
 	mask = 0xf << (nybble * 4)
 	value := ((s.pc.Reg & ^mask) | (in << (nybble * 4) & mask)) & s.mask
 	s.pc.WriteDirect(value)
+	rlog.Debugf("AddressStack: Direct Wrote program counter nybble %d. New value=%03X", nybble, value)
 }
 
 // WriteProgramCounter writes the program counter one nybble at a time
@@ -59,6 +62,7 @@ func (s *AddressStack) WriteProgramCounter(nybble uint64) {
 	mask = 0xf << (nybble * 4)
 	value := ((s.pc.Reg & ^mask) | (busValue << (nybble * 4) & mask)) & s.mask
 	s.pc.WriteDirect(value)
+	rlog.Debugf("AddressStack: Wrote program counter nybble %d. New value=%03X", nybble, value)
 }
 
 // IncProgramCounter increments the program counter

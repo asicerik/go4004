@@ -6,10 +6,14 @@ import (
 	"github.com/romana/rlog"
 )
 
-const JCN = 0x10 // Jump conditional
-const JUN = 0x40 // Jump unconditional
-const LDM = 0xD0 // Load direct into accumulator
-const XCH = 0xB0 // Exchange the accumulator and scratchpad register
+const NOP = 0x00     // No Operation
+const JCN = 0x10     // Jump conditional
+const FIM_SRC = 0x20 // FIM = Fetch immediate. SRC = Send address to ROM/RAM
+const JUN = 0x40     // Jump unconditional
+const LDM = 0xD0     // Load direct into accumulator
+const XCH = 0xB0     // Exchange the accumulator and scratchpad register
+const WRR = 0xE2     // ROM I/O write
+const RDR = 0xEA     // ROM I/O read
 
 type DecoderFlag struct {
 	Name    string
@@ -27,6 +31,8 @@ type Decoder struct {
 	currInstruction int
 	dblInstruction  int  // The current instruction requires two complete cycles
 	inhibitPCInc    bool // Inhibit the program counter increment for jumps, etc.
+	x2IsRead        bool // The CPU's X2 cycle is an external device read
+	x3IsRead        bool // The CPU's X3 cycle is an external device read
 }
 
 const (
@@ -155,7 +161,20 @@ func (d *Decoder) CalculateFlags() {
 			d.writeFlag(InstRegLoad, 1)
 			d.writeFlag(DecodeInstruction, 1)
 		}
+	case 6:
+		if d.syncSent {
+			// If the X2 cycle is a read, read the external bus
+			if d.x2IsRead {
+				d.writeFlag(BusDir, common.DirIn)
+			} else {
+				d.writeFlag(BusDir, common.DirOut)
+			}
+		}
 	case 7:
+		// If the X3 cycle is a read, read the external bus
+		if d.x3IsRead {
+			d.writeFlag(BusDir, common.DirIn)
+		}
 		d.writeFlag(Sync, 1)
 	}
 	// Continue to decode instructions after clock 5
@@ -178,23 +197,19 @@ func (d *Decoder) SetCurrentInstruction(inst uint64, evalResult bool) (err error
 }
 
 func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
-	inst := d.currInstruction & 0xf0
-	switch inst {
-	// 	// This is special case code in the core as we will need to turn the bus around
-	// 	if d.clockCount == 5 {
-	// 		d.InstRegOut = true
-	// 		d.BusTurnAround = true
-	// 	}
-	// }
+	// The upper 4 bits of the instruction
+	opr := d.currInstruction & 0xf0
+	fullInst := d.currInstruction
+	switch opr {
 	case JCN:
 		fallthrough
 	case JUN:
 		// Are we on the first phase?
 		if d.dblInstruction == 0 {
-			if inst == JCN {
+			if opr == JCN {
 				rlog.Debug("JCN command decoded")
 				d.writeFlag(EvalulateJCN, 1)
-			} else if inst == JUN {
+			} else if opr == JUN {
 				rlog.Debug("JUN command decoded")
 			}
 			if d.clockCount == 5 {
@@ -209,7 +224,7 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			if d.clockCount == 5 {
 				// If this is a conditional jump, evaluate the condition here
 				blockJump := false
-				if inst == JCN {
+				if opr == JCN {
 					blockJump = !evalResult
 				}
 				if !blockJump {
@@ -236,7 +251,7 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 				// It contains the middle 4 bits of the address
 				d.writeFlag(TempOut, 1)
 			} else if d.clockCount == 0 {
-				if inst == JUN {
+				if opr == JUN {
 					// NOTE: we have already started outputting the PC onto the bus
 					// for the next cycle, but we can still update the highest bits
 					// since they go out last
@@ -275,13 +290,40 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			d.writeFlag(AccLoad, 1)
 			d.currInstruction = -1
 		}
-
 	case LDM:
 		rlog.Debug("LDM command decoded")
 		if d.clockCount == 5 {
 			d.writeFlag(InstRegOut, 1)
 		} else if d.clockCount == 6 {
 			d.writeFlag(AccLoad, 1)
+			d.currInstruction = -1
+		}
+	case FIM_SRC:
+		if (fullInst & 0x1) == 0 {
+			rlog.Debug("FIM command decoded")
+		} else {
+			// Send I/O address to ROM/RAM
+			rlog.Debug("SRC command decoded")
+			if d.clockCount == 6 {
+				// Output the selected scratchpad register
+				d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xe)) // Note - we are chopping bit 0
+				d.writeFlag(ScratchPadOut, 1)
+			} else if d.clockCount == 7 {
+				// Output the selected scratchpad register + 1
+				d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xe)+1) // Note - we are chopping bit 0
+				d.writeFlag(ScratchPadOut, 1)
+				d.currInstruction = -1
+			}
+		}
+	}
+	switch fullInst {
+	case WRR:
+		// ROM I/O Write
+		// Send I/O address to ROM/RAM
+		rlog.Debug("WRR command decoded")
+		if d.clockCount == 6 {
+			// Output the accumulator to the external bus
+			d.writeFlag(AccOut, 1)
 			d.currInstruction = -1
 		}
 	}

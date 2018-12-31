@@ -71,10 +71,10 @@ func runOneCycle(core *Core, data uint64, t *testing.T) (addr uint64) {
 		}
 		core.ClockOut()
 		if i == 2 {
-			rlog.Debugf("Writing upper data %X", (data>>4)&0xf)
+			rlog.Debugf("runOneCycle: Writing upper data %X", (data>>4)&0xf)
 			core.ExternalDataBus.Write((data >> 4) & 0xf)
 		} else if i == 3 {
-			rlog.Debugf("Writing lower data %X", data&0xf)
+			rlog.Debugf("runOneCycle: Writing lower data %X", data&0xf)
 			core.ExternalDataBus.Write(data & 0xf)
 		}
 	}

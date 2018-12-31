@@ -36,7 +36,7 @@ func (b *Bus) Read() (value uint64) {
 }
 
 func (b *Bus) Reset() {
-	rlog.Debugf("BUS: %s Reset", b.Name)
+	rlog.Tracef(1, "BUS: %s Reset", b.Name)
 	b.data = 0xffffffffffffffff & b.mask
 	b.writes = 0
 }
