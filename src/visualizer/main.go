@@ -17,8 +17,8 @@ import (
 func main() {
 
 	// Programmatically change an rlog setting from within the program
-	os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
-	os.Setenv("RLOG_TRACE_LEVEL", "0")
+	os.Setenv("RLOG_LOG_LEVEL", "INFO")
+	//os.Setenv("RLOG_TRACE_LEVEL", "0")
 	os.Setenv("RLOG_LOG_FILE", "go4004.log")
 	rlog.UpdateEnv()
 
@@ -50,39 +50,43 @@ func main() {
 		image.Point{canvas.Width() - int(2*css.Margin), canvas.Height() - int(2*css.Margin) - romHeight}})
 
 	lastTime := time.Now()
-	renderCount := 0
-	wnd.MainLoop(func() {
-		currTime := time.Now()
-		if currTime.Sub(lastTime).Seconds() >= 0.1 {
-			lastTime = currTime
-			DumpState(core, rom)
-			core.Calculate()
-			core.ClockIn()
-			rom.ClockIn()
-			core.ClockOut()
-			rom.ClockOut()
-			// Render twice because glfw is double buffered
-			renderCount = 2
-		}
-		if renderCount > 0 {
-			coreRenderer.Render(canvas)
-			romRenderer.Render(canvas)
-			canvas.SetFillStyle("#ccc")
-			canvas.FillRect(20, float64(canvas.Height())-70, 200, 40)
-			canvas.SetFillStyle("#000")
-			canvas.FillText(fmt.Sprintf("FPS=%3.1f", wnd.FPS()), 20, float64(canvas.Height())-40)
-			renderCount--
-		}
-	})
+	// renderCount := 0
+	// wnd.MainLoop(func() {
+	// 	currTime := time.Now()
+	// 	if currTime.Sub(lastTime).Seconds() >= 0.1 {
+	// 		lastTime = currTime
+	// 		DumpState(core, rom)
+	// 		core.Calculate()
+	// 		core.ClockIn()
+	// 		rom.ClockIn()
+	// 		core.ClockOut()
+	// 		rom.ClockOut()
+	// 		// Render twice because glfw is double buffered
+	// 		renderCount = 2
+	// 	}
+	// 	if renderCount > 0 {
+	// 		coreRenderer.Render(canvas)
+	// 		romRenderer.Render(canvas)
+	// 		canvas.SetFillStyle("#ccc")
+	// 		canvas.FillRect(20, float64(canvas.Height())-70, 200, 40)
+	// 		canvas.SetFillStyle("#000")
+	// 		canvas.FillText(fmt.Sprintf("FPS=%3.1f", wnd.FPS()), 20, float64(canvas.Height())-40)
+	// 		renderCount--
+	// 	}
+	// })
 
-	// var loops = 1000000
-	// for i := 0; i < loops; i++ {
-	// 	core.Step()
-	// 	rom.Clock()
-	// }
-	// duration := time.Now().Sub(lastTime).Seconds()
-	// hz := float64(loops) / duration
-	// rlog.Infof("Elapsed time = %f seconds, or %3.1f kHz", duration, hz/1000)
+	var loops = 1000000
+	for i := 0; i < loops; i++ {
+		// DumpState(core, rom)
+		core.Calculate()
+		core.ClockIn()
+		rom.ClockIn()
+		core.ClockOut()
+		rom.ClockOut()
+	}
+	duration := time.Now().Sub(lastTime).Seconds()
+	hz := float64(loops) / duration
+	rlog.Infof("Elapsed time = %f seconds, or %3.1f kHz", duration, hz/1000)
 	rlog.Info("Goodbye")
 }
 

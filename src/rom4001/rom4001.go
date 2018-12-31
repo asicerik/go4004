@@ -140,7 +140,7 @@ func (r *Rom4001) updateInternal() {
 			r.ioBuf.BtoA()
 		}
 		if r.busExt.Read() == (instruction.FIM_SRC >> 4) {
-			rlog.Info("ROM: FIM/SRC instruction detected")
+			rlog.Debug("ROM: FIM/SRC instruction detected")
 		}
 	case 4:
 		r.instReg.WriteDirect(r.busInt.Read())
