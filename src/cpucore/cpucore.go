@@ -140,6 +140,8 @@ func (c *Core) ClockOut() {
 
 	if c.getDecoderFlag(instruction.BusDir) == common.DirOut {
 		c.busBuffer.buf.BtoA()
+	} else if c.getDecoderFlag(instruction.BusDir) == common.DirIn {
+		c.busBuffer.buf.SetDirAtoB()
 	}
 
 	// // Special handling for turn-around cycles

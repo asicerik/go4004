@@ -236,11 +236,13 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 				// It contains the middle 4 bits of the address
 				d.writeFlag(TempOut, 1)
 			} else if d.clockCount == 0 {
-				// NOTE: we have already started outputting the PC onto the bus
-				// for the next cycle, but we can still update the highest bits
-				// since they go out last
-				// Load the highest 4 bits into the PC
-				d.writeFlag(PCLoad, 3)
+				if inst == JUN {
+					// NOTE: we have already started outputting the PC onto the bus
+					// for the next cycle, but we can still update the highest bits
+					// since they go out last
+					// Load the highest 4 bits into the PC
+					d.writeFlag(PCLoad, 3)
+				}
 				d.dblInstruction = 0
 				d.currInstruction = -1
 				// Unblock the PC increment

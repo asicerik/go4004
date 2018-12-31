@@ -50,3 +50,15 @@ func (b *Buffer) BtoA() {
 	b.Dir = DirBtoA
 	b.changed = true
 }
+
+// SetDirAtoB just sets the direction from bus A to bus B (for the UI)
+func (b *Buffer) SetDirAtoB() {
+	b.Dir = DirAtoB
+	b.changed = true
+}
+
+// SetDirBtoA just sets the direction from bus A to bus B (for the UI)
+func (b *Buffer) SetDirBtoA() {
+	b.Dir = DirBtoA
+	b.changed = true
+}
