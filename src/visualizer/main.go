@@ -36,7 +36,7 @@ func main() {
 	core := cpucore.Core{}
 	core.Init()
 	rom := rom4001.Rom4001{}
-	rom.Init(&core.ExternalDataBus, &core.Sync)
+	rom.Init(&core.ExternalDataBus, &core.Sync, &core.CmROM)
 	WriteROM(&rom)
 	romRenderer := rom4001.Renderer{}
 	romLeft := int(css.Margin) + 40

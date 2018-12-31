@@ -18,6 +18,8 @@ const NumRegisters = 16
 type Core struct {
 	ExternalDataBus common.Bus
 	Sync            int
+	CmROM           int   // ROM select
+	CmRAM           uint8 // RAM select
 	Decoder         instruction.Decoder
 
 	regs            scratchpad.Registers
