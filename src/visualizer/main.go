@@ -1,6 +1,7 @@
 package main
 
 import (
+	"common"
 	"cpucore"
 	"css"
 	"fmt"
@@ -18,8 +19,8 @@ import (
 func main() {
 
 	// Programmatically change an rlog setting from within the program
-	os.Setenv("RLOG_LOG_LEVEL", "INFO")
-	//os.Setenv("RLOG_TRACE_LEVEL", "0")
+	os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
+	os.Setenv("RLOG_TRACE_LEVEL", "0")
 	os.Setenv("RLOG_LOG_FILE", "go4004.log")
 	rlog.UpdateEnv()
 
@@ -35,16 +36,30 @@ func main() {
 
 	core := cpucore.Core{}
 	core.Init()
+
+	ioBus := common.Bus{}
+	ioBus.Init(4, "ROM I/O bus")
+	ioBus.Write(0xA)
 	rom := rom4001.Rom4001{}
 	rom.Init(&core.ExternalDataBus, &core.Sync, &core.CmROM)
+	rom.SetIOBus(&ioBus)
 	WriteROM(&rom)
+
 	romRenderer := rom4001.Renderer{}
 	romLeft := int(css.Margin) + 40
-
 	romRenderer.InitRender(&rom, canvas, image.Rectangle{
 		image.Point{romLeft, int(css.Margin)},
 		image.Point{romLeft, int(css.Margin)}})
 	romHeight := romRenderer.Bounds().Dy()
+	romWidth := romRenderer.Bounds().Dx()
+
+	led0Renderer := IoBusRenderer{}
+	led0Left := romLeft + romWidth + 20
+	ledWidth := 120
+	ledHeight := 120
+	led0Renderer.InitRender(&ioBus, 0, image.Rectangle{
+		image.Point{led0Left, int(css.Margin)},
+		image.Point{led0Left + ledWidth, int(css.Margin) + ledHeight}})
 
 	coreRenderer := cpucore.Renderer{}
 	coreRenderer.InitRender(&core, canvas, image.Rectangle{
@@ -57,7 +72,7 @@ func main() {
 		currTime := time.Now()
 		if currTime.Sub(lastTime).Seconds() >= 0.1 {
 			lastTime = currTime
-			DumpState(core, rom)
+			DumpState(core, rom, &ioBus)
 			core.Calculate()
 			core.ClockIn()
 			rom.ClockIn()
@@ -69,6 +84,7 @@ func main() {
 		if renderCount > 0 {
 			coreRenderer.Render(canvas)
 			romRenderer.Render(canvas)
+			led0Renderer.Render(canvas)
 			canvas.SetFillStyle("#ccc")
 			canvas.FillRect(20, float64(canvas.Height())-70, 200, 40)
 			canvas.SetFillStyle("#000")
@@ -92,11 +108,12 @@ func main() {
 	rlog.Info("Goodbye")
 }
 
-func DumpState(core cpucore.Core, rom rom4001.Rom4001) {
-	rlog.Infof("PC=%X, DBUS=%X, INST=%X, SYNC=%d, CCLK=%d, ROMCLK=%d",
+func DumpState(core cpucore.Core, rom rom4001.Rom4001, romIoBus *common.Bus) {
+	rlog.Infof("PC=%X, DBUS=%X, INST=%X, ROMIO=%X, SYNC=%d, CCLK=%d, ROMCLK=%d",
 		core.GetProgramCounter(),
 		core.ExternalDataBus.Read(),
 		core.GetInstructionRegister(),
+		romIoBus.Read(),
 		core.Sync, core.GetClockCount(),
 		rom.GetClockCount())
 }
@@ -104,7 +121,7 @@ func DumpState(core cpucore.Core, rom rom4001.Rom4001) {
 func WriteROM(r *rom4001.Rom4001) {
 	data := make([]uint8, rom4001.Depth)
 	// Load a sample program into memory
-	data[0] = instruction.LDM | 5           // Load 5 into the accumulator
+	data[0] = instruction.LDM | 0           // Load 5 into the accumulator (chip ID)
 	data[1] = instruction.XCH | 2           // Swap accumulator with r2
 	data[2] = instruction.LDM | 0xC         // Load C into the accumulator
 	data[3] = instruction.NOP               // NOP

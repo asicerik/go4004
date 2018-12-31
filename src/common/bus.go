@@ -8,7 +8,8 @@ type Bus struct {
 	data     uint64
 	mask     uint64
 	BusWidth int
-	writes   int // Number of writes to the bus during this tick
+	Updated  bool // The bus has been written since the last redraw
+	writes   int  // Number of writes to the bus during this tick
 }
 
 func (b *Bus) Init(busWidth int, name string) {
@@ -29,6 +30,7 @@ func (b *Bus) Write(value uint64) {
 	if b.writes > 1 {
 		rlog.Warnf("**** Bus collision. Name=%s, writes=%d", b.Name, b.writes)
 	}
+	b.Updated = true // cleared by renderer
 }
 
 func (b *Bus) Read() (value uint64) {
@@ -39,4 +41,5 @@ func (b *Bus) Reset() {
 	rlog.Tracef(1, "BUS: %s Reset", b.Name)
 	b.data = 0xffffffffffffffff & b.mask
 	b.writes = 0
+	b.Updated = true // cleared by renderer
 }
