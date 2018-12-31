@@ -23,7 +23,7 @@ func (b *Bus) Init(busWidth int, name string) {
 }
 
 func (b *Bus) Write(value uint64) {
-	rlog.Debugf("BUS: %s write=%X", b.Name, value)
+	rlog.Debugf("BUS: %s write=%X, writesPre=%d. this=%p", b.Name, value, b.writes, b)
 	b.data = value
 	b.writes++
 	if b.writes > 1 {
@@ -36,6 +36,7 @@ func (b *Bus) Read() (value uint64) {
 }
 
 func (b *Bus) Reset() {
+	rlog.Debugf("BUS: %s Reset", b.Name)
 	b.data = 0xffffffffffffffff & b.mask
 	b.writes = 0
 }

@@ -107,6 +107,7 @@ func (c *Core) ClockIn() {
 // ClockOut clock external outputs to their respective busses/logic lines
 func (c *Core) ClockOut() {
 	c.internalDataBus.Reset()
+	c.ExternalDataBus.Reset()
 
 	c.Decoder.Clock()
 
@@ -177,9 +178,11 @@ func (c *Core) evalulateJCN() bool {
 	invertBitFlag := int((condititonFlags >> 3) & 0x1)
 	result := true
 	if invertBitFlag == 0 {
-		result = carryBitFlag == aluFlags.Carry || zeroBitFlag == aluFlags.Zero
+		result = ((carryBitFlag == 0) || (aluFlags.Carry == 1)) &&
+			((zeroBitFlag == 0) || (aluFlags.Zero == 1))
 	} else {
-		result = carryBitFlag != aluFlags.Carry || zeroBitFlag != aluFlags.Zero
+		result = ((carryBitFlag == 1) && (aluFlags.Carry == 0)) ||
+			((zeroBitFlag == 1) && (aluFlags.Zero == 0))
 	}
 	rlog.Debugf("evalulateJCN: conditionalFlags=%X, aluFlags=%v. Result=%v", condititonFlags, aluFlags, result)
 	return result

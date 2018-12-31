@@ -31,6 +31,7 @@ func (a *Alu) Init(dataBus *common.Bus, width int) {
 		a.mask = a.mask << 1
 		a.mask = a.mask | 1
 	}
+	a.flags.Zero = 1
 	a.accumulator.Init(dataBus, width, "ACC=")
 	a.tempRegister.Init(dataBus, width, "Temp=")
 }
