@@ -18,6 +18,23 @@ func LEDCount() []uint8 {
 	return data
 }
 
+func StackOverflow() []uint8 {
+	data := make([]uint8, 0)
+	addInstruction(&data, JMS)
+	addInstruction(&data, 0x2)
+	addInstruction(&data, JMS)
+	addInstruction(&data, 0x4)
+	addInstruction(&data, JMS)
+	addInstruction(&data, 0x6)
+	// This should be an overflow
+	addInstruction(&data, JMS)
+	addInstruction(&data, 0x8)
+	// Fill the rest of the space up till 256
+	zeroes := make([]uint8, 256-len(data))
+	data = append(data, zeroes...)
+	return data
+}
+
 func addInstruction(data *[]uint8, inst uint8) {
 	*data = append(*data, inst)
 }

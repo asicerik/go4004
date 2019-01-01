@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"instruction"
+	"os"
 	"rom4001"
 	"time"
 
@@ -18,10 +19,10 @@ import (
 func main() {
 
 	// Programmatically change an rlog setting from within the program
-	// os.Setenv("RLOG_LOG_LEVEL", "INFO")
-	// os.Setenv("RLOG_TRACE_LEVEL", "0")
-	// os.Setenv("RLOG_LOG_FILE", "go4004.log")
-	// rlog.UpdateEnv()
+	os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
+	os.Setenv("RLOG_TRACE_LEVEL", "0")
+	os.Setenv("RLOG_LOG_FILE", "go4004.log")
+	rlog.UpdateEnv()
 
 	rlog.Info("Welcome to the go 4004 emulator :)")
 
@@ -128,6 +129,6 @@ func DumpState(core cpucore.Core, rom rom4001.Rom4001, romIoBus *common.Bus) {
 
 func WriteROM(r *rom4001.Rom4001) {
 	// Load a sample program into memory
-	data := instruction.LEDCount()
+	data := instruction.StackOverflow()
 	r.LoadProgram(data)
 }

@@ -69,3 +69,23 @@ func (s *AddressStack) WriteProgramCounter(nybble uint64) {
 func (s *AddressStack) IncProgramCounter() {
 	s.pc.Increment()
 }
+
+func (s *AddressStack) StackPush() {
+	if s.stackPointer == len(s.stack) {
+		rlog.Warn("Stack overflow")
+		return
+	}
+	rlog.Infof("Stack PUSH: SP=%d (pre), PC=%03X", s.stackPointer, s.pc.Reg)
+	s.stack[s.stackPointer].WriteDirect(s.pc.Reg)
+	s.stackPointer++
+}
+
+func (s *AddressStack) StackPop() {
+	if s.stackPointer == 0 {
+		rlog.Warn("Stack underflow")
+		return
+	}
+	s.pc.WriteDirect(s.stack[s.stackPointer].ReadDirect())
+	rlog.Infof("Stack POP: SP=%d (pre), PC=%03X", s.stackPointer, s.pc.Reg)
+	s.stackPointer--
+}

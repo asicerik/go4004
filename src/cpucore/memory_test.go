@@ -161,8 +161,13 @@ func TestJCN(t *testing.T) {
 }
 
 func verifyJump(core *Core, instruction uint64, jumpExpected bool, t *testing.T) {
+	verifyJumpExtended(core, instruction, jumpExpected, false, t)
+}
+
+func verifyJumpExtended(core *Core, instruction uint64, jumpExpected bool, extendedAddress bool, t *testing.T) {
 	addr := uint64(0)
 	data := uint64(0)
+	jumpAddress := uint64(0xabc)
 	nextAddr := runOneCycle(core, 0, t) + 1
 	// run 5 complete cycles
 	for i := 0; i < 5; i++ {
@@ -173,13 +178,21 @@ func verifyJump(core *Core, instruction uint64, jumpExpected bool, t *testing.T)
 		case 1:
 			data = 0x0
 		case 2:
-			data = instruction
+			if extendedAddress {
+				data = instruction | (jumpAddress >> 8)
+			} else {
+				data = instruction
+			}
 		case 3:
-			data = 0xaa
+			if extendedAddress {
+				data = jumpAddress
+			} else {
+				data = jumpAddress & 0xff
+			}
 		}
 		addr = runOneCycle(core, data, t)
 		if addr != nextAddr {
-			t.Errorf("Address %X was not equal to %X", addr, nextAddr)
+			t.Errorf("Jump address mismatch. Exp %X, got %X", nextAddr, addr)
 		}
 		if i == 3 && jumpExpected {
 			nextAddr = data
@@ -303,5 +316,63 @@ func TestJIN(t *testing.T) {
 	addr := runOneCycle(&core, uint64(instruction.NOP), t)
 	if addr != uint64(romAddr) {
 		t.Errorf("Address %X was not equal to %X", addr, romAddr)
+	}
+}
+
+func TestJMS(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestJMS")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	verifyJump(&core, instruction.JMS, true, t)
+	addr := uint64(0)
+	expAddr := uint64(0xAB) // verify jump jumps to 0xAA, and this is the next cycle
+
+	// Run a few NOPs to make sure the address keeps going up
+	for i := 0; i < 4; i++ {
+		addr = runOneCycle(&core, uint64(instruction.NOP), t)
+		if addr != uint64(expAddr) {
+			t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
+		}
+		expAddr++
+	}
+}
+
+func TestBBL(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestBBL")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	verifyJumpExtended(&core, instruction.JMS, true, true, t)
+	addr := uint64(0)
+	expAddr := uint64(0xABD) // verify jump jumps to 0xABC, and this is the next cycle
+
+	// Run a few NOPs to make sure the address keeps going up
+	for i := 0; i < 4; i++ {
+		addr = runOneCycle(&core, uint64(instruction.NOP), t)
+		if addr != uint64(expAddr) {
+			t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
+		}
+		expAddr++
+	}
+
+	// Now, pop the stack
+	addr = runOneCycle(&core, uint64(instruction.BBL), t)
+	if addr != uint64(expAddr) {
+		t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
+	}
+	// Now we should be back where we started
+	expAddr = 1
+	addr = runOneCycle(&core, uint64(instruction.BBL), t)
+	if addr != uint64(expAddr) {
+		t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
 	}
 }

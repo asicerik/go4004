@@ -13,8 +13,10 @@ const FIN = 0x30 // Fetch indirect from ROM
 const JIN = 0x31 // Jump indirect from current register pair
 const SRC = 0x21 // Send address to ROM/RAM
 const JUN = 0x40 // Jump unconditional
+const JMS = 0x50 // Jump to subroutine
 const LDM = 0xD0 // Load direct into accumulator
 const XCH = 0xB0 // Exchange the accumulator and scratchpad register
+const BBL = 0xC0 // Branch back (stack pop)
 const WRR = 0xE2 // ROM I/O write
 const RDR = 0xEA // ROM I/O read
 
@@ -57,6 +59,8 @@ const (
 	ScratchPadLoad4          // Load 4 bits into the currently selected scratchpad register
 	ScratchPadLoad8          // Load 8 bits into the currently selected scratchpad registers
 	ScratchPadOut            // Currently selected scratchpad register should drive the bus
+	StackPush                // Push the current address onto the stack
+	StackPop                 // Pop the address stack
 	DecodeInstruction        // The instruction register is ready to be decoded
 	EvalulateJCN             // Evaluate the condition flags for a JCN instruction
 	END                      // Marker for end of list
@@ -83,6 +87,8 @@ func (d *Decoder) Init() {
 	d.Flags[ScratchPadLoad4] = DecoderFlag{"SPL4", 0, false}
 	d.Flags[ScratchPadLoad8] = DecoderFlag{"SPL8", 0, false}
 	d.Flags[ScratchPadOut] = DecoderFlag{"SPO ", 0, false}
+	d.Flags[StackPush] = DecoderFlag{"PUSH", 0, false}
+	d.Flags[StackPop] = DecoderFlag{"POP ", 0, false}
 	d.Flags[DecodeInstruction] = DecoderFlag{"DEC ", 0, false}
 	d.Flags[EvalulateJCN] = DecoderFlag{"EJCN", 0, false}
 }
@@ -274,6 +280,8 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 		}
 	case JCN:
 		fallthrough
+	case JMS:
+		fallthrough
 	case JUN:
 		// Are we on the first phase?
 		if d.dblInstruction == 0 {
@@ -282,6 +290,8 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 				d.writeFlag(EvalulateJCN, 1)
 			} else if opr == JUN {
 				rlog.Debug("JUN command decoded")
+			} else if opr == JMS {
+				rlog.Debug("JMS command decoded")
 			}
 			if d.clockCount == 5 {
 				d.writeFlag(InstRegOut, 1)
@@ -309,6 +319,10 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 					d.dblInstruction = 0
 					d.currInstruction = -1
 				}
+				if opr == JMS {
+					// Push the current address onto the stack
+					d.writeFlag(StackPush, 1)
+				}
 			} else if d.clockCount == 6 {
 				// Load the lowest 4 bits into the PC
 				d.writeFlag(PCLoad, 1)
@@ -322,7 +336,7 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 				// It contains the middle 4 bits of the address
 				d.writeFlag(TempOut, 1)
 			} else if d.clockCount == 0 {
-				if opr == JUN {
+				if opr == JUN || opr == JMS {
 					// NOTE: we have already started outputting the PC onto the bus
 					// for the next cycle, but we can still update the highest bits
 					// since they go out last
@@ -387,6 +401,16 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 				d.writeFlag(ScratchPadOut, 1)
 				d.currInstruction = -1
 			}
+		}
+	case BBL:
+		// Branch back and address stack pop
+		if d.clockCount == 5 {
+			rlog.Debug("BBL command decoded")
+			// Pop the address stack
+			d.writeFlag(StackPop, 1)
+			// NOTE : the stack pointer contains the address where the jump was.
+			// The incrementer will fire and add 1
+			d.currInstruction = -1
 		}
 	}
 	switch fullInst {

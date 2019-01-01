@@ -108,6 +108,13 @@ func (c *Core) ClockIn() {
 	if c.getDecoderFlag(instruction.ScratchPadLoad4) != 0 {
 		c.regs.Write()
 	}
+	if c.getDecoderFlag(instruction.StackPush) != 0 {
+		c.as.StackPush()
+	}
+	if c.getDecoderFlag(instruction.StackPop) != 0 {
+		c.as.StackPop()
+	}
+
 }
 
 // ClockOut clock external outputs to their respective busses/logic lines
