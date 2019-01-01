@@ -111,6 +111,7 @@ func (a *Alu) Evaluate() {
 
 func (a *Alu) ReadEval() {
 	a.aluCore.ReadOutput()
+	a.coreDrivingBus = true
 }
 
 func (a *Alu) GetFlags() AluFlags {
@@ -172,6 +173,7 @@ func (a *aluCore) ReadOutput() {
 
 func (a *aluCore) SetMode(mode string) {
 	a.mode = mode
+	a.changed = true
 	rlog.Debugf("** ALU: Set mode to %s", mode)
 }
 
@@ -189,8 +191,7 @@ func (a *aluCore) Evaluate(accIn uint64, tmpIn uint64) {
 		out = accIn - tmpIn
 	}
 	out = out & a.mask
-	a.dataBus.Reset()
-	a.dataBus.Write(out)
+	a.outputReg.WriteDirect(out)
 	rlog.Debugf("** ALU: Evaluated mode %s, A=%X, T=%X, out=%X, carry=%X",
 		a.mode, accIn, tmpIn, out, a.Carry)
 }

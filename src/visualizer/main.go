@@ -134,6 +134,6 @@ func DumpState(core cpucore.Core, rom rom4001.Rom4001, romIoBus *common.Bus) {
 
 func WriteROM(r *rom4001.Rom4001) {
 	// Load a sample program into memory
-	data := instruction.LEDCount()
+	data := instruction.LEDCountUsingAdd()
 	r.LoadProgram(data)
 }

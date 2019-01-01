@@ -71,7 +71,7 @@ func (r *Renderer) InitRender(alu *Alu, canvas *canvas.Canvas, bounds image.Rect
 		image.Point{flagRegX + r.bounds.Min.X, r.bounds.Min.Y + busHeight},
 		image.Point{flagRegX + r.bounds.Min.X + int(css.RegisterWidth), r.bounds.Min.Y + busHeight + int(css.RegisterHeight)}})
 
-	r.aluCoreRenderer.InitRender(r.alu.aluCore, canvas, image.Rectangle{
+	r.aluCoreRenderer.InitRender(&r.alu.aluCore, canvas, image.Rectangle{
 		image.Point{aluCoreX + r.bounds.Min.X, r.bounds.Min.Y + aluCoreY},
 		image.Point{aluCoreX + r.bounds.Min.X + aluCoreW, r.bounds.Min.Y + aluCoreY + aluCoreH}})
 
@@ -115,13 +115,13 @@ func (r *Renderer) Render(canvas *canvas.Canvas) {
 
 // CoreRenderer contains all the rendering code of our cpu
 type CoreRenderer struct {
-	aluCore aluCore
+	aluCore *aluCore
 	bounds  image.Rectangle
 	dirty   int // if non-zero, render
 }
 
 // InitRender Initializes the renderer
-func (r *CoreRenderer) InitRender(aluCore aluCore, canvas *canvas.Canvas, bounds image.Rectangle) {
+func (r *CoreRenderer) InitRender(aluCore *aluCore, canvas *canvas.Canvas, bounds image.Rectangle) {
 	r.aluCore = aluCore
 	r.bounds = bounds
 }
