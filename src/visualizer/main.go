@@ -66,6 +66,11 @@ func main() {
 
 	lastTime := time.Now()
 	renderCount := 0
+	// How many clock cycles do we run between renders
+	// 1 = render every clock cycle (= SLOW)
+	// Current max performance is about 160kHz on my machine,
+	// which works out to about 5,300 clocks max before the frame
+	// rate drops. 8192 gives about 20fps on my machine
 	clocksPerRender := 1
 	wnd.MainLoop(func() {
 		currTime := time.Now()
@@ -87,9 +92,11 @@ func main() {
 			romRenderer.Render(canvas)
 			led0Renderer.Render(canvas)
 			canvas.SetFillStyle("#ccc")
-			canvas.FillRect(20, float64(canvas.Height())-70, 200, 40)
+			canvas.FillRect(20, float64(canvas.Height())-70, 500, 40)
 			canvas.SetFillStyle("#000")
-			canvas.FillText(fmt.Sprintf("FPS=%3.1f", wnd.FPS()), 20, float64(canvas.Height())-40)
+			canvas.FillText(fmt.Sprintf("FPS=%3.1f, CPU Clock=%3.2f kHz",
+				wnd.FPS(), (wnd.FPS()*float32(clocksPerRender))/1000),
+				20, float64(canvas.Height())-40)
 			renderCount--
 		}
 	})
