@@ -56,6 +56,10 @@ func (c *Core) GetProgramCounter() uint64 {
 	return c.as.GetProgramCounter()
 }
 
+func (c *Core) LogScratchPadRegisters() {
+	c.regs.Log()
+}
+
 func (c *Core) getDecoderFlag(index int) int {
 	return c.Decoder.Flags[index].Value
 }

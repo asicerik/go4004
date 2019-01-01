@@ -156,7 +156,9 @@ func (r *Rom4001) updateInternal() {
 			r.ioOpDetected = false
 		}
 
-		if r.busInt.Read() == (instruction.FIM_SRC >> 4) {
+		// NOTE: FIM and SRC have the same upper 4 bits
+		// We won't know which instruction it is until the next cycle
+		if r.busInt.Read() == (instruction.SRC >> 4) {
 			rlog.Debug("ROM: FIM/SRC instruction detected")
 			r.srcDetected = true
 		} else {

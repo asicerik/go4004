@@ -6,14 +6,17 @@ import (
 	"github.com/romana/rlog"
 )
 
-const NOP = 0x00     // No Operation
-const JCN = 0x10     // Jump conditional
-const FIM_SRC = 0x20 // FIM = Fetch immediate. SRC = Send address to ROM/RAM
-const JUN = 0x40     // Jump unconditional
-const LDM = 0xD0     // Load direct into accumulator
-const XCH = 0xB0     // Exchange the accumulator and scratchpad register
-const WRR = 0xE2     // ROM I/O write
-const RDR = 0xEA     // ROM I/O read
+const NOP = 0x00 // No Operation
+const JCN = 0x10 // Jump conditional
+const FIM = 0x20 // Fetch immediate
+const FIN = 0x30 // Fetch indirect from ROM
+const JIN = 0x31 // Jump indirect from current register pair
+const SRC = 0x21 // Send address to ROM/RAM
+const JUN = 0x40 // Jump unconditional
+const LDM = 0xD0 // Load direct into accumulator
+const XCH = 0xB0 // Exchange the accumulator and scratchpad register
+const WRR = 0xE2 // ROM I/O write
+const RDR = 0xEA // ROM I/O read
 
 type DecoderFlag struct {
 	Name    string
@@ -31,6 +34,7 @@ type Decoder struct {
 	currInstruction int
 	dblInstruction  int  // The current instruction requires two complete cycles
 	inhibitPCInc    bool // Inhibit the program counter increment for jumps, etc.
+	inhibitPC       bool // Block the program counter from writing to the external bus
 	x2IsRead        bool // The CPU's X2 cycle is an external device read
 	x3IsRead        bool // The CPU's X3 cycle is an external device read
 }
@@ -134,15 +138,24 @@ func (d *Decoder) CalculateFlags() {
 		}
 	}
 
+	// Continue to decode instructions after clock 5
+	if d.clockCount != 5 && d.currInstruction > 0 {
+		d.decodeCurrentInstruction(false)
+	}
+
 	switch d.clockCount {
 	case 0:
-		// Drive the current address (nybble 0) to the external bus
+		if !d.inhibitPC {
+			// Drive the current address (nybble 0) to the external bus
+			d.writeFlag(PCOut, 1)
+		}
 		d.writeFlag(BusDir, common.DirOut)
-		d.writeFlag(PCOut, 1)
 	case 1:
-		// Drive the current address (nybble 1) to the external bus
+		if !d.inhibitPC {
+			// Drive the current address (nybble 1) to the external bus
+			d.writeFlag(PCOut, 1)
+		}
 		d.writeFlag(BusDir, common.DirOut)
-		d.writeFlag(PCOut, 1)
 	case 2:
 		// Drive the current address (nybble 2) to the external bus
 		d.writeFlag(BusDir, common.DirOut)
@@ -151,9 +164,7 @@ func (d *Decoder) CalculateFlags() {
 		if d.syncSent {
 			// Read the OPR from the external bus and write it into the instruction register
 			d.writeFlag(BusDir, common.DirIn)
-			if d.clockCount == 4 {
-				d.writeFlag(InstRegLoad, 1)
-			}
+			d.writeFlag(InstRegLoad, 1)
 		}
 	case 5:
 		if d.syncSent {
@@ -177,10 +188,6 @@ func (d *Decoder) CalculateFlags() {
 		}
 		d.writeFlag(Sync, 1)
 	}
-	// Continue to decode instructions after clock 5
-	if d.clockCount != 5 && d.currInstruction > 0 {
-		d.decodeCurrentInstruction(false)
-	}
 }
 
 // SetCurrentInstruction set the current instruction from the instruction register
@@ -201,6 +208,70 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 	opr := d.currInstruction & 0xf0
 	fullInst := d.currInstruction
 	switch opr {
+	// Note FIN and JIN share the same upper 4 bits
+	case FIN & 0xf0:
+		if (fullInst & 0xf1) == JIN {
+			// Jump indirect to address in specified register pair
+			if d.clockCount == 6 {
+				rlog.Debug("JIN command decoded")
+				// Output the lower address to the program counter
+				d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xe)+0) // Note - we are chopping bit 0
+				d.writeFlag(ScratchPadOut, 1)
+				// Block the PC increment
+				d.inhibitPCInc = true
+			} else if d.clockCount == 7 {
+				// Load the lowest 4 bits into the PC
+				d.writeFlag(PCLoad, 1)
+
+				// Output the lower address to the program counter
+				d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xe)+1) // Note - we are chopping bit 0
+				d.writeFlag(ScratchPadOut, 1)
+			} else if d.clockCount == 0 {
+				// Load the middle 4 bits into the PC
+				d.writeFlag(PCLoad, 2)
+				d.currInstruction = -1
+				// Unblock the PC increment
+				d.inhibitPCInc = false
+			}
+		} else if (fullInst & 0xf1) == FIN {
+			// Fetch indirect to address in register pair 0
+			// then store the result in specified register pair
+			if d.clockCount == 0 {
+				rlog.Debug("FIN command decoded")
+				// Output the lower address to the data bus
+				d.writeFlag(ScratchPadIndex, 0)
+				d.writeFlag(ScratchPadOut, 1)
+				// UnBlock the PC increment
+				d.inhibitPCInc = false
+				// Disable the program counter from using the bus
+				d.inhibitPC = true
+				// Mark this as a double instruction to prevent the instruction register
+				// from being clobbered
+				d.dblInstruction = d.currInstruction
+			} else if d.clockCount == 1 {
+				// Output the middle address to the data bus
+				d.writeFlag(ScratchPadIndex, 1)
+				d.writeFlag(ScratchPadOut, 1)
+			} else if d.clockCount == 2 {
+				// Unblock the PC
+				d.inhibitPC = false
+			} else if d.clockCount == 4 && d.dblInstruction > 0 {
+				// Load the ROM data into the scratch pad register pair 0
+				d.writeFlag(ScratchPadIndex, int(d.dblInstruction&0xe)+0) // Note - we are chopping bit 0
+				d.writeFlag(ScratchPadLoad4, 1)
+			} else if d.clockCount == 5 && d.dblInstruction > 0 {
+				// Load the ROM data into the scratch pad register pair 1
+				d.writeFlag(ScratchPadIndex, int(d.dblInstruction&0xe)+1) // Note - we are chopping bit 0
+				d.writeFlag(ScratchPadLoad4, 1)
+				// Done
+				d.dblInstruction = 1
+				d.currInstruction = -1
+			} else if d.clockCount == 6 && d.dblInstruction <= 0 {
+				// Block the PC increment
+				d.inhibitPCInc = true
+			}
+
+		}
 	case JCN:
 		fallthrough
 	case JUN:
@@ -298,7 +369,9 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			d.writeFlag(AccLoad, 1)
 			d.currInstruction = -1
 		}
-	case FIM_SRC:
+	case FIM:
+		fallthrough
+	case SRC:
 		if (fullInst & 0x1) == 0 {
 			rlog.Debug("FIM command decoded")
 		} else {

@@ -47,8 +47,9 @@ func (r *Registers) Write() {
 }
 
 func (r *Registers) Log() {
+	ret := ""
 	for i := range r.regs {
-		fmt.Printf("%X ", r.regs[i].Reg)
+		ret = ret + fmt.Sprintf("%X ", r.regs[i].Reg)
 	}
-	fmt.Println()
+	rlog.Debug(ret)
 }

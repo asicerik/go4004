@@ -61,6 +61,11 @@ func waitForSync(core *Core) (syncSeen bool, count int) {
 }
 
 func runOneCycle(core *Core, data uint64, t *testing.T) (addr uint64) {
+	addr, _ = runOneIOCycle(core, data, t)
+	return addr
+}
+
+func runOneIOCycle(core *Core, data uint64, t *testing.T) (addr uint64, ioVal uint64) {
 	addr = 0
 	for i := 0; i < 8; i++ {
 		DumpState(*core)
@@ -68,6 +73,9 @@ func runOneCycle(core *Core, data uint64, t *testing.T) (addr uint64) {
 		core.ClockIn()
 		if i < 3 {
 			addr = addr | (core.ExternalDataBus.Read() << (uint64(i) * 4))
+		}
+		if i == 6 {
+			ioVal = core.ExternalDataBus.Read()
 		}
 		core.ClockOut()
 		if i == 2 {
@@ -102,7 +110,7 @@ func TestProgramCounterBasic(t *testing.T) {
 }
 
 func TestJUN(t *testing.T) {
-	// SetupLogger()
+	SetupLogger()
 	rlog.Info("TestJUN")
 	core := Core{}
 	core.Init()
@@ -180,4 +188,120 @@ func verifyJump(core *Core, instruction uint64, jumpExpected bool, t *testing.T)
 		}
 	}
 
+}
+
+func loadRegisterPair(core *Core, data uint8, regPair int, t *testing.T) (nextAddr uint64) {
+	// Load the accumulator with the lower 4 bits
+	nextAddr = runOneCycle(core, uint64(instruction.LDM|(data&0xf)), t)
+	// Swap the accumulator with the lower register pair
+	nextAddr = runOneCycle(core, uint64(instruction.XCH|(regPair<<1)), t)
+	// Load the accumulator with the higher 4 bits
+	nextAddr = runOneCycle(core, uint64(instruction.LDM|((data>>4)&0xf)), t)
+	// Swap the accumulator with the lower register pair
+	nextAddr = runOneCycle(core, uint64(instruction.XCH|((regPair<<1)+1)), t)
+	return nextAddr
+}
+
+func TestSRC(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestSRC")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	regPair := 2
+	expSrcVal := uint64(0xd)
+	// Populate the scratch registers with out expected value
+	loadRegisterPair(&core, 0xd, regPair, t)
+	core.LogScratchPadRegisters()
+
+	// Run the SRC command
+	_, srcVal := runOneIOCycle(&core, uint64(instruction.SRC|(regPair<<1)), t)
+	if expSrcVal != srcVal {
+		t.Errorf("SRC val %X was not equal to %X", srcVal, expSrcVal)
+	}
+
+}
+
+func TestFIM(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestFIM")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	regPair := 2
+	romValue := 0xde
+
+	// The first cycle sets up the register pair to load into
+	runOneCycle(&core, uint64(instruction.FIM|(regPair<<1)), t)
+	// The second cycle provides the data to load
+	runOneCycle(&core, uint64(romValue), t)
+
+	core.LogScratchPadRegisters()
+}
+
+func TestFIN(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestFIN")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	regPair := 2
+	romAddr := uint8(0xde)
+	romData := uint8(0x77)
+
+	// Populate scratch registers pair 0 with out expected address
+	loadRegisterPair(&core, romAddr, 0, t)
+	core.LogScratchPadRegisters()
+
+	// Run the command and verify the address on the next cycle
+	addr := runOneCycle(&core, uint64(instruction.FIN|(regPair<<1)), t)
+
+	// When the fetch is done, we should resume where we left off
+	expAddr := addr + 1
+
+	// Run the next cycle and provide the ROM read data
+	addr = runOneCycle(&core, uint64(romData), t)
+	if addr != uint64(romAddr) {
+		t.Errorf("Fetch address mismatch. Exp %X, got %X", romAddr, addr)
+	}
+
+	// Run a final cycle to see where the program counter ended up
+	addr = runOneCycle(&core, uint64(romData), t)
+	if addr != uint64(expAddr) {
+		t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
+	}
+}
+
+func TestJIN(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestJIN")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	regPair := 2
+	romAddr := uint8(0xde)
+
+	// Populate the scratch registers with out expected value
+	loadRegisterPair(&core, romAddr, regPair, t)
+	core.LogScratchPadRegisters()
+
+	// Run the command and verify the address on the next cycle
+	runOneCycle(&core, uint64(instruction.JIN|(regPair<<1)), t)
+
+	addr := runOneCycle(&core, uint64(instruction.NOP), t)
+	if addr != uint64(romAddr) {
+		t.Errorf("Address %X was not equal to %X", addr, romAddr)
+	}
 }
