@@ -8,20 +8,26 @@ import (
 	"github.com/romana/rlog"
 )
 
+const enableLog = true
+
 func SetupLogger() {
-	// Programmatically change an rlog setting from within the program
-	os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
-	os.Setenv("RLOG_TRACE_LEVEL", "0")
-	os.Setenv("RLOG_LOG_FILE", "cpucore_test.log")
-	rlog.UpdateEnv()
+	if enableLog {
+		// Programmatically change an rlog setting from within the program
+		os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
+		os.Setenv("RLOG_TRACE_LEVEL", "0")
+		os.Setenv("RLOG_LOG_FILE", "cpucore_test.log")
+		rlog.UpdateEnv()
+	}
 }
 
 func DumpState(core Core) {
-	rlog.Infof("PC=%X, DBUS=%X, INST=%X, SYNC=%d, CCLK=%d",
-		core.GetProgramCounter(),
-		core.ExternalDataBus.Read(),
-		core.GetInstructionRegister(),
-		core.Sync, core.GetClockCount())
+	if enableLog {
+		rlog.Infof("PC=%X, DBUS=%X, INST=%X, SYNC=%d, CCLK=%d",
+			core.GetProgramCounter(),
+			core.ExternalDataBus.Read(),
+			core.GetInstructionRegister(),
+			core.Sync, core.GetClockCount())
+	}
 }
 
 func TestSync(t *testing.T) {
@@ -521,5 +527,4 @@ func TestISZ(t *testing.T) {
 		}
 		expAddr++
 	}
-
 }

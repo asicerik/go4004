@@ -1,6 +1,7 @@
 package instruction
 
 import (
+	"alu"
 	"common"
 
 	"github.com/romana/rlog"
@@ -16,12 +17,23 @@ const JUN = 0x40 // Jump unconditional
 const JMS = 0x50 // Jump to subroutine
 const INC = 0x60 // Increment register
 const ISZ = 0x70 // Increment register and jump if zero
+const ADD = 0x80 // Add register to accumulator with carry
 const LDM = 0xD0 // Load direct into accumulator
 const LD = 0xA0  // Load register into accumulator
 const XCH = 0xB0 // Exchange the accumulator and scratchpad register
 const BBL = 0xC0 // Branch back (stack pop)
 const WRR = 0xE2 // ROM I/O write
 const RDR = 0xEA // ROM I/O read
+
+// Some helpers
+// You can use any of these three in combination
+const JCN_TEST_SET = 0x11  // Jump if test bit is set
+const JCN_CARRY_SET = 0x12 // Jump if carry bit is set
+const JCN_ZERO_SET = 0x14  // Jump if accumulator is zero
+// You can use any of these three in combination
+const JCN_TEST_UNSET = 0x19  // Jump if test bit is NOT set
+const JCN_CARRY_UNSET = 0x1A // Jump if carry bit is NOT set
+const JCN_ZERO_UNSET = 0x1C  // Jump if accumulator is NOT zero
 
 type DecoderFlag struct {
 	Name    string
@@ -58,6 +70,9 @@ const (
 	AccLoad                  // Load the accumulator from the internal bus
 	TempLoad                 // Load the temp register from the internal bus
 	TempOut                  // Temp register should drive the bus
+	AluOut                   // ALU core should drive the bus
+	AluEval                  // ALU should evaluate
+	AluMode                  // The current mode for the ALU
 	ScratchPadIndex          // Which scratchpd (index) register to read/write
 	ScratchPadLoad4          // Load 4 bits into the currently selected scratchpad register
 	ScratchPadLoad8          // Load 8 bits into the currently selected scratchpad registers
@@ -79,15 +94,18 @@ func (d *Decoder) Init() {
 	d.Flags[Sync] = DecoderFlag{"SYNC", 0, false}
 	d.Flags[BusDir] = DecoderFlag{"BDIR", 0, false}
 	d.Flags[BusTurnAround] = DecoderFlag{"BTA ", 0, false}
-	d.Flags[InstRegOut] = DecoderFlag{"IO  ", 0, false}
-	d.Flags[InstRegLoad] = DecoderFlag{"IL  ", 0, false}
+	d.Flags[InstRegOut] = DecoderFlag{"INSO  ", 0, false}
+	d.Flags[InstRegLoad] = DecoderFlag{"INSL  ", 0, false}
 	d.Flags[PCOut] = DecoderFlag{"PCO ", 0, false}
 	d.Flags[PCLoad] = DecoderFlag{"PCL ", 0, false}
 	d.Flags[PCInc] = DecoderFlag{"PCI ", 0, false}
-	d.Flags[AccOut] = DecoderFlag{"AO  ", 0, false}
-	d.Flags[AccLoad] = DecoderFlag{"AL  ", 0, false}
-	d.Flags[TempOut] = DecoderFlag{"TO  ", 0, false}
-	d.Flags[TempLoad] = DecoderFlag{"TL  ", 0, false}
+	d.Flags[AccOut] = DecoderFlag{"ACCO  ", 0, false}
+	d.Flags[AccLoad] = DecoderFlag{"ACCL  ", 0, false}
+	d.Flags[TempOut] = DecoderFlag{"TMPO  ", 0, false}
+	d.Flags[TempLoad] = DecoderFlag{"TMPL  ", 0, false}
+	d.Flags[AluOut] = DecoderFlag{"ALUO", 0, false}
+	d.Flags[AluEval] = DecoderFlag{"ALUE", 0, false}
+	d.Flags[AluMode] = DecoderFlag{"ALUM", 0, false}
 	d.Flags[ScratchPadIndex] = DecoderFlag{"SPI ", -1, false}
 	d.Flags[ScratchPadLoad4] = DecoderFlag{"SPL4", 0, false}
 	d.Flags[ScratchPadLoad8] = DecoderFlag{"SPL8", 0, false}
@@ -455,6 +473,22 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			// NOTE : the stack pointer contains the address where the jump was.
 			// The incrementer will fire and add 1
 		} else if d.clockCount == 7 {
+			d.writeFlag(AccLoad, 1)
+			d.currInstruction = -1
+		}
+	case ADD:
+		rlog.Debug("ADD command decoded")
+		if d.clockCount == 5 {
+			d.writeFlag(AluMode, alu.AluIntModeAdd)
+			// Output the data from the selected scratchpad register
+			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
+			d.writeFlag(ScratchPadOut, 1)
+		} else if d.clockCount == 6 {
+			// Load the value into the temp register
+			d.writeFlag(TempLoad, 1)
+		} else if d.clockCount == 7 {
+			// Evaluate the ALU and write the value into the accumulator
+			d.writeFlag(AluEval, 1)
 			d.writeFlag(AccLoad, 1)
 			d.currInstruction = -1
 		}

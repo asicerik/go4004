@@ -96,6 +96,14 @@ func (c *Core) ClockIn() {
 		c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
 	}
 
+	// ALU ops
+	if c.getDecoderFlag(instruction.AluMode) != 0 {
+		c.alu.SetMode(c.getDecoderFlag(instruction.AluMode))
+	}
+	if c.getDecoderFlag(instruction.AluEval) != 0 {
+		c.alu.Evaluate()
+	}
+
 	// Finally, any internal bus loads. Do this last to make sure the bus has valid data
 	if c.getDecoderFlag(instruction.AccLoad) != 0 {
 		c.alu.WriteAccumulator()
@@ -115,7 +123,6 @@ func (c *Core) ClockIn() {
 	if c.getDecoderFlag(instruction.StackPop) != 0 {
 		c.as.StackPop()
 	}
-
 }
 
 // ClockOut clock external outputs to their respective busses/logic lines
@@ -191,7 +198,7 @@ func (c *Core) ClockOut() {
 func (c *Core) evalulateJCN() bool {
 	// Not sure how the real CPU does this, so I am cutting corners here
 	condititonFlags := c.alu.ReadTempDirect()
-	aluFlags := c.alu.ReadFlags()
+	aluFlags := c.alu.GetFlags()
 	// testBitFlag := int(condititonFlags & 0x1)
 	carryBitFlag := int((condititonFlags >> 1) & 0x1)
 	zeroBitFlag := int((condititonFlags >> 2) & 0x1)
