@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"image"
 	"instruction"
-	"os"
 	"rom4001"
 	"time"
 
@@ -19,10 +18,10 @@ import (
 func main() {
 
 	// Programmatically change an rlog setting from within the program
-	os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
-	os.Setenv("RLOG_TRACE_LEVEL", "0")
-	os.Setenv("RLOG_LOG_FILE", "go4004.log")
-	rlog.UpdateEnv()
+	// os.Setenv("RLOG_LOG_LEVEL", "INFO")
+	// os.Setenv("RLOG_TRACE_LEVEL", "0")
+	// os.Setenv("RLOG_LOG_FILE", "go4004.log")
+	// rlog.UpdateEnv()
 
 	rlog.Info("Welcome to the go 4004 emulator :)")
 
@@ -39,7 +38,6 @@ func main() {
 
 	ioBus := common.Bus{}
 	ioBus.Init(4, "ROM I/O bus")
-	ioBus.Write(0xA)
 	rom := rom4001.Rom4001{}
 	rom.Init(&core.ExternalDataBus, &core.Sync, &core.CmROM)
 	rom.SetIOBus(&ioBus)
@@ -68,16 +66,19 @@ func main() {
 
 	lastTime := time.Now()
 	renderCount := 0
+	clocksPerRender := 1
 	wnd.MainLoop(func() {
 		currTime := time.Now()
-		if currTime.Sub(lastTime).Seconds() >= 0.1 {
+		if currTime.Sub(lastTime).Seconds() >= 0.01 {
 			lastTime = currTime
-			DumpState(core, rom, &ioBus)
-			core.Calculate()
-			core.ClockIn()
-			rom.ClockIn()
-			core.ClockOut()
-			rom.ClockOut()
+			for i := 0; i < clocksPerRender; i++ {
+				//DumpState(core, rom, &ioBus)
+				core.Calculate()
+				core.ClockIn()
+				rom.ClockIn()
+				core.ClockOut()
+				rom.ClockOut()
+			}
 			// Render twice because glfw is double buffered
 			renderCount = 2
 		}
@@ -119,19 +120,7 @@ func DumpState(core cpucore.Core, rom rom4001.Rom4001, romIoBus *common.Bus) {
 }
 
 func WriteROM(r *rom4001.Rom4001) {
-	data := make([]uint8, rom4001.Depth)
 	// Load a sample program into memory
-	data[0] = instruction.LDM | 0           // Load 5 into the accumulator (chip ID)
-	data[1] = instruction.XCH | 2           // Swap accumulator with r2
-	data[2] = instruction.LDM | 0xC         // Load C into the accumulator
-	data[3] = instruction.NOP               // NOP
-	data[4] = instruction.FIM_SRC | (2) | 1 // Send address in r2,r3 to ROM/RAM
-	data[5] = instruction.WRR               // Write accumulator to ROM
-	data[6] = 0x40                          // JUN 0
-	data[7] = 0x00                          // JUN 0 (cont)
-	// Set the rest to incrementing values
-	for i := 8; i < len(data); i++ {
-		data[i] = uint8(i)
-	}
+	data := instruction.LEDCount()
 	r.LoadProgram(data)
 }

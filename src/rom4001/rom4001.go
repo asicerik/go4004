@@ -197,6 +197,7 @@ func (r *Rom4001) updateInternal() {
 			switch cmd {
 			case instruction.WRR & 0xf:
 				// IO Write
+				r.ioBus.Reset()
 				r.ioBus.Write(r.busInt.Read())
 			}
 		}
