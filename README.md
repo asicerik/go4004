@@ -5,13 +5,12 @@ This project is written in Go, with an optional graphics front-end using SDL. Th
 
 ![Visualizer Program in Action](https://dl.dropboxusercontent.com/s/cho3c26wtrkhzh4/Go%204004.jpg?dl=0)
 
-As you can see in this image, the CPU clock is running at about 120kHz. The real CPU was rated at 750kHz, so we are a little off :)
+As you can see in this image, the CPU clock is running at about 150kHz. The real CPU was rated at 750kHz, so we are a little off :)
 **However**,  the intent of this project was not to make a fast emulator, but rather something that actually models the CPU and its peripherals. 
 ## Project update as of 01/01/2019
 
  - ALU is now implemented with ADD
  - LED count program added using the ALU. Down to a loop of 5 instructions now :)
- - Performance dropped again to 120kHz. Unclear why these changes are dropping performance so much. It should be conditional code
  
 ## Current project status as of 12/31/2018
 
