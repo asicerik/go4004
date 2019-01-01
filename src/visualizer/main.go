@@ -18,11 +18,14 @@ import (
 
 func main() {
 
+	enableLog := false
 	// Programmatically change an rlog setting from within the program
-	os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
-	os.Setenv("RLOG_TRACE_LEVEL", "0")
-	os.Setenv("RLOG_LOG_FILE", "go4004.log")
-	rlog.UpdateEnv()
+	if enableLog {
+		os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
+		os.Setenv("RLOG_TRACE_LEVEL", "0")
+		os.Setenv("RLOG_LOG_FILE", "go4004.log")
+		rlog.UpdateEnv()
+	}
 
 	rlog.Info("Welcome to the go 4004 emulator :)")
 
@@ -78,7 +81,9 @@ func main() {
 		if currTime.Sub(lastTime).Seconds() >= 0.01 {
 			lastTime = currTime
 			for i := 0; i < clocksPerRender; i++ {
-				//DumpState(core, rom, &ioBus)
+				if enableLog {
+					DumpState(core, rom, &ioBus)
+				}
 				core.Calculate()
 				core.ClockIn()
 				rom.ClockIn()
@@ -129,6 +134,6 @@ func DumpState(core cpucore.Core, rom rom4001.Rom4001, romIoBus *common.Bus) {
 
 func WriteROM(r *rom4001.Rom4001) {
 	// Load a sample program into memory
-	data := instruction.StackOverflow()
+	data := instruction.LEDCount()
 	r.LoadProgram(data)
 }

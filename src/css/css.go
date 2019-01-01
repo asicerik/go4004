@@ -21,4 +21,5 @@ var (
 	LedRedOn                   = "#f22"
 	LedRedOff                  = "#700"
 	LedRedBorder               = "#f88"
+	AluCoreFill                = "#0aa"
 )

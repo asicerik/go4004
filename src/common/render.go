@@ -104,12 +104,14 @@ func (r *BufferRenderer) Render(canvas *canvas.Canvas) {
 
 // BusRenderer renders a Bus to the screen
 type BusRenderer struct {
-	bus        *Bus
-	startLoc   image.Point
-	endLoc     image.Point
-	widthPix   int
-	dirty      int // needs to be redrawn if non-zero
-	DrivingBus *bool
+	bus          *Bus
+	startLoc     image.Point
+	endLoc       image.Point
+	widthPix     int
+	dirty        int  // needs to be redrawn if non-zero
+	NoStartArrow bool // Don't draw the start arrowhead
+	NoEndArrow   bool // Don't draw the end arrowhead
+	DrivingBus   *bool
 }
 
 // InitRender initializes the element for rendering
@@ -155,8 +157,12 @@ func (b *BusRenderer) Render(canvas *canvas.Canvas) {
 	arrowWidth := float64(b.widthPix)
 	arrowHeight := float64(b.widthPix) * 1.75
 	if b.startLoc.Y == b.endLoc.Y {
-		RenderArrowHead(canvas, float64(b.startLoc.X), float64(b.startLoc.Y), arrowWidth, arrowHeight, 0)
-		RenderArrowHead(canvas, float64(b.endLoc.X), float64(b.endLoc.Y), arrowWidth, arrowHeight, 1)
+		if !b.NoStartArrow {
+			RenderArrowHead(canvas, float64(b.startLoc.X), float64(b.startLoc.Y), arrowWidth, arrowHeight, 0)
+		}
+		if !b.NoEndArrow {
+			RenderArrowHead(canvas, float64(b.endLoc.X), float64(b.endLoc.Y), arrowWidth, arrowHeight, 1)
+		}
 		canvas.FillRect(float64(b.startLoc.X)+arrowWidth, float64(b.startLoc.Y-b.widthPix/2),
 			float64(b.endLoc.X-b.startLoc.X)-arrowWidth*2, float64(b.widthPix))
 		canvas.SetFillStyle(css.RegisterTextNormal)
@@ -168,10 +174,50 @@ func (b *BusRenderer) Render(canvas *canvas.Canvas) {
 				float64(b.startLoc.X)+20+arrowWidth, float64(b.startLoc.Y)+5)
 		}
 	} else if b.startLoc.X == b.endLoc.X {
-		RenderArrowHead(canvas, float64(b.startLoc.X), float64(b.startLoc.Y), arrowHeight, arrowWidth, 2)
-		RenderArrowHead(canvas, float64(b.endLoc.X), float64(b.endLoc.Y), arrowHeight, arrowWidth, 3)
+		if !b.NoStartArrow {
+			RenderArrowHead(canvas, float64(b.startLoc.X), float64(b.startLoc.Y), arrowHeight, arrowWidth, 2)
+		}
+		if !b.NoEndArrow {
+			RenderArrowHead(canvas, float64(b.endLoc.X), float64(b.endLoc.Y), arrowHeight, arrowWidth, 3)
+		}
 		canvas.FillRect(float64(b.startLoc.X-b.widthPix/2), float64(b.startLoc.Y)+arrowWidth,
 			float64(b.widthPix), float64(b.endLoc.Y-b.startLoc.Y)-arrowWidth*2)
+	} else if b.startLoc.X < b.endLoc.X {
+		if b.startLoc.Y < b.endLoc.Y {
+			if !b.NoStartArrow {
+				RenderArrowHead(canvas, float64(b.startLoc.X), float64(b.startLoc.Y), arrowHeight, arrowWidth, 2)
+				canvas.FillRect(float64(b.startLoc.X-b.widthPix/2), float64(b.startLoc.Y)+arrowWidth,
+					float64(b.widthPix), float64(b.endLoc.Y-b.startLoc.Y)-arrowWidth)
+			} else {
+				canvas.FillRect(float64(b.startLoc.X-b.widthPix/2), float64(b.startLoc.Y),
+					float64(b.widthPix), float64(b.endLoc.Y-b.startLoc.Y))
+			}
+			if !b.NoEndArrow {
+				RenderArrowHead(canvas, float64(b.endLoc.X), float64(b.endLoc.Y), arrowWidth, arrowHeight, 1)
+				canvas.FillRect(float64(b.startLoc.X-b.widthPix/2), float64(b.endLoc.Y-b.widthPix/2),
+					float64(b.endLoc.X-b.startLoc.X), float64(b.widthPix))
+			} else {
+				canvas.FillRect(float64(b.startLoc.X-b.widthPix/2), float64(b.endLoc.Y-b.widthPix/2),
+					float64(b.endLoc.X-b.startLoc.X+b.widthPix/2), float64(b.widthPix))
+			}
+		} else {
+			if !b.NoStartArrow {
+				RenderArrowHead(canvas, float64(b.startLoc.X), float64(b.startLoc.Y), arrowWidth, arrowHeight, 0)
+				canvas.FillRect(float64(b.startLoc.X)+arrowWidth, float64(b.startLoc.Y-b.widthPix/2),
+					float64(b.endLoc.X-b.startLoc.X)-arrowWidth, float64(b.widthPix))
+			} else {
+				canvas.FillRect(float64(b.startLoc.X), float64(b.startLoc.Y-b.widthPix/2),
+					float64(b.endLoc.X-b.startLoc.X), float64(b.widthPix))
+			}
+			if !b.NoEndArrow {
+				RenderArrowHead(canvas, float64(b.endLoc.X), float64(b.endLoc.Y), arrowHeight, arrowWidth, 2)
+				canvas.FillRect(float64(b.endLoc.X-b.widthPix/2), float64(b.startLoc.Y+b.widthPix/2),
+					float64(b.widthPix), float64(b.endLoc.Y-b.startLoc.Y))
+			} else {
+				canvas.FillRect(float64(b.endLoc.X-b.widthPix/2), float64(b.startLoc.Y+b.widthPix/2),
+					float64(b.widthPix), float64(b.endLoc.Y-b.startLoc.Y-b.widthPix/2))
+			}
+		}
 	}
 	b.dirty--
 }

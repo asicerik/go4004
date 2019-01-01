@@ -57,8 +57,8 @@ func (r *Renderer) InitRender(core *Core, canvas *canvas.Canvas, bounds image.Re
 		image.Point{extBufferLeft + extBufferWidth, extBufferTop + extBufferHeight}})
 
 	aluLeftMargin := 20
-	aluWidth := 400
-	aluHeight := 200
+	aluWidth := 470
+	aluHeight := 400
 	aluRight := r.bounds.Min.X + aluWidth + aluLeftMargin
 	r.aluRenderer.InitRender(&r.core.alu, canvas, image.Rectangle{
 		image.Point{r.bounds.Min.X + aluLeftMargin, intBusY + mainBusSizePx/2},
