@@ -76,8 +76,9 @@ func (c *Core) ClockIn() {
 		c.busBuffer.buf.AtoB()
 	}
 
-	c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
-
+	if c.getDecoderFlag(instruction.ScratchPadIndex) >= 0 {
+		c.regs.Select(c.getDecoderFlag(instruction.ScratchPadIndex))
+	}
 	if c.getDecoderFlag(instruction.InstRegLoad) != 0 {
 		// Read the OPR from the external bus and write it into the instruction register
 		c.inst.Write()
@@ -151,6 +152,9 @@ func (c *Core) ClockOut() {
 	if c.getDecoderFlag(instruction.ScratchPadOut) != 0 {
 		c.regs.Read()
 	}
+	if c.getDecoderFlag(instruction.ScratchPadInc) != 0 {
+		c.regs.Inc()
+	}
 
 	if c.getDecoderFlag(instruction.BusDir) == common.DirOut {
 		c.busBuffer.buf.BtoA()
@@ -178,6 +182,9 @@ func (c *Core) ClockOut() {
 	if c.getDecoderFlag(instruction.EvalulateJCN) != 0 {
 		c.evaluationFn = c.evalulateJCN
 	}
+	if c.getDecoderFlag(instruction.EvalulateISZ) != 0 {
+		c.evaluationFn = c.evalulateISZ
+	}
 }
 
 // If these functions return false, conditional jumps are blocked
@@ -199,6 +206,12 @@ func (c *Core) evalulateJCN() bool {
 	}
 	rlog.Debugf("evalulateJCN: conditionalFlags=%X, aluFlags=%v. Result=%v", condititonFlags, aluFlags, result)
 	return result
+}
+
+func (c *Core) evalulateISZ() bool {
+	condition := c.regs.IsCurrentRegisterZero()
+	rlog.Debugf("evalulateISZ: Result=%v", condition)
+	return !condition
 }
 
 // ExternalBusBuffer is the buffer that connects the internal and external data busses

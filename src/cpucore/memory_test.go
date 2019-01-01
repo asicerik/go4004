@@ -77,6 +77,9 @@ func runOneIOCycle(core *Core, data uint64, t *testing.T) (addr uint64, ioVal ui
 		if i == 6 {
 			ioVal = core.ExternalDataBus.Read()
 		}
+		if i == 7 {
+			ioVal = ioVal | (core.ExternalDataBus.Read() << 4)
+		}
 		core.ClockOut()
 		if i == 2 {
 			rlog.Debugf("runOneCycle: Writing upper data %X", (data>>4)&0xf)
@@ -328,9 +331,9 @@ func TestJMS(t *testing.T) {
 	if !syncSeen {
 		t.Fatal("Sync was not seen")
 	}
-	verifyJump(&core, instruction.JMS, true, t)
+	verifyJumpExtended(&core, instruction.JMS, true, true, t)
 	addr := uint64(0)
-	expAddr := uint64(0xAB) // verify jump jumps to 0xAA, and this is the next cycle
+	expAddr := uint64(0xABD) // verify jump jumps to 0xABC, and this is the next cycle
 
 	// Run a few NOPs to make sure the address keeps going up
 	for i := 0; i < 4; i++ {
@@ -366,7 +369,8 @@ func TestBBL(t *testing.T) {
 
 	// Now, pop the stack
 	// This value should end up in the accumulator after the pop
-	accumVal := uint64(0x9)
+	// NOTE : this field is 4 bits
+	accumVal := uint64(0x9) & 0xf
 	addr = runOneCycle(&core, uint64(instruction.BBL|accumVal), t)
 	if addr != uint64(expAddr) {
 		t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
@@ -380,6 +384,7 @@ func TestBBL(t *testing.T) {
 	verifyAccumulator(&core, accumVal, t)
 }
 
+// NOTE: THIS TEST IS DESTRUCTIVE!
 func verifyAccumulator(core *Core, exp uint64, t *testing.T) {
 	// Swap the accumulator with register 14
 	regPair := 7
@@ -389,4 +394,132 @@ func verifyAccumulator(core *Core, exp uint64, t *testing.T) {
 	if exp != srcVal {
 		t.Errorf("Accumulator val %X was not equal to %X", srcVal, exp)
 	}
+}
+
+func verifyRegister(core *Core, regIndex uint64, exp uint64, t *testing.T) {
+	regPair := regIndex >> 1
+	// Run the SRC command
+	_, srcVal := runOneIOCycle(core, uint64(instruction.SRC|(regPair<<1)), t)
+	if (regIndex % 2) == 0 {
+		srcVal = srcVal & 0xf
+	} else {
+		srcVal = srcVal >> 4
+	}
+	if exp != srcVal {
+		t.Errorf("Register val %X was not equal to %X", srcVal, exp)
+	}
+}
+
+func TestLDM(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestLDM")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	// 4 bits max
+	accumVal := uint64(0xe)
+	runOneCycle(&core, uint64(instruction.LDM|accumVal), t)
+	verifyAccumulator(&core, accumVal, t)
+}
+
+func TestLD(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestLD")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	// 4 bits max
+	accumVal := uint64(0xe)
+	regIndex := uint64(8)
+	runOneCycle(&core, uint64(instruction.LDM|accumVal), t)
+	// Swap the register and accumulator
+	runOneCycle(&core, uint64(instruction.XCH|regIndex), t)
+	core.LogScratchPadRegisters()
+	// Verify the register
+	verifyRegister(&core, regIndex, accumVal, t)
+	// Accumulator should now be 0
+	verifyAccumulator(&core, 0, t)
+
+	// Load the register back into the accumulator
+	runOneCycle(&core, uint64(instruction.LD|regIndex), t)
+	// Accumulator should now have accumVal back in it
+	verifyAccumulator(&core, accumVal, t)
+	// Verify the register was not effected
+	verifyRegister(&core, regIndex, accumVal, t)
+}
+
+func TestINC(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestINC")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	// 4 bits max
+	accumVal := uint64(0xe)
+	regIndex := uint64(8)
+	runOneCycle(&core, uint64(instruction.LDM|accumVal), t)
+	// Swap the register and accumulator
+	runOneCycle(&core, uint64(instruction.XCH|regIndex), t)
+	core.LogScratchPadRegisters()
+	// Verify the register
+	verifyRegister(&core, regIndex, accumVal, t)
+	// Accumulator should now be 0
+	verifyAccumulator(&core, 0, t)
+
+	// Increment the register
+	runOneCycle(&core, uint64(instruction.INC|regIndex), t)
+	// Verify the register was incremented
+	verifyRegister(&core, regIndex, accumVal+1, t)
+}
+
+func TestISZ(t *testing.T) {
+	SetupLogger()
+	rlog.Info("TestISZ")
+	core := Core{}
+	core.Init()
+	syncSeen, _ := waitForSync(&core)
+	if !syncSeen {
+		t.Fatal("Sync was not seen")
+	}
+	// 4 bits max
+	accumVal := uint64(0xe)
+	regIndex := uint64(8)
+	runOneCycle(&core, uint64(instruction.LDM|accumVal), t)
+	// Swap the register and accumulator
+	runOneCycle(&core, uint64(instruction.XCH|regIndex), t)
+	core.LogScratchPadRegisters()
+
+	// Run the ISZ command, and we should jump because the register INC result was 0xF
+	verifyJump(&core, uint64(instruction.ISZ|regIndex), true, t)
+
+	// Make sure we continue to read the right addresses
+	expAddr := uint64(0xBD) // verifyJump went to 0xBC
+	for i := 0; i < 4; i++ {
+		addr := runOneCycle(&core, uint64(instruction.NOP), t)
+		if expAddr != addr {
+			t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
+		}
+		expAddr++
+	}
+
+	// Run the ISZ again, and now we should continue on
+	verifyJump(&core, uint64(instruction.ISZ|regIndex), false, t)
+	expAddr = 0xC7 // Did NOT go back to 0xBD in a jump
+	for i := 0; i < 4; i++ {
+		addr := runOneCycle(&core, uint64(instruction.NOP), t)
+		if expAddr != addr {
+			t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
+		}
+		expAddr++
+	}
+
 }

@@ -46,6 +46,17 @@ func (r *Registers) Write() {
 	r.regs[r.index].Write()
 }
 
+func (r *Registers) Inc() {
+	value := r.regs[r.index].ReadDirect()
+	value = (value + 1) & 0xf
+	rlog.Debugf("Incremented ScratchPad Register %d. New value is %X", r.index, value)
+	r.regs[r.index].WriteDirect(value)
+}
+
+func (r *Registers) IsCurrentRegisterZero() bool {
+	return r.regs[r.index].ReadDirect() == 0
+}
+
 func (r *Registers) Log() {
 	ret := ""
 	for i := range r.regs {

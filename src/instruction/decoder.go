@@ -9,12 +9,15 @@ import (
 const NOP = 0x00 // No Operation
 const JCN = 0x10 // Jump conditional
 const FIM = 0x20 // Fetch immediate
+const SRC = 0x21 // Send address to ROM/RAM
 const FIN = 0x30 // Fetch indirect from ROM
 const JIN = 0x31 // Jump indirect from current register pair
-const SRC = 0x21 // Send address to ROM/RAM
 const JUN = 0x40 // Jump unconditional
 const JMS = 0x50 // Jump to subroutine
+const INC = 0x60 // Increment register
+const ISZ = 0x70 // Increment register and jump if zero
 const LDM = 0xD0 // Load direct into accumulator
+const LD = 0xA0  // Load register into accumulator
 const XCH = 0xB0 // Exchange the accumulator and scratchpad register
 const BBL = 0xC0 // Branch back (stack pop)
 const WRR = 0xE2 // ROM I/O write
@@ -59,10 +62,12 @@ const (
 	ScratchPadLoad4          // Load 4 bits into the currently selected scratchpad register
 	ScratchPadLoad8          // Load 8 bits into the currently selected scratchpad registers
 	ScratchPadOut            // Currently selected scratchpad register should drive the bus
+	ScratchPadInc            // Currently selected scratchpad register should be incremented
 	StackPush                // Push the current address onto the stack
 	StackPop                 // Pop the address stack
 	DecodeInstruction        // The instruction register is ready to be decoded
 	EvalulateJCN             // Evaluate the condition flags for a JCN instruction
+	EvalulateISZ             // Evaluate the scratchpad regiser for an ISZ instruction
 	END                      // Marker for end of list
 )
 
@@ -83,14 +88,16 @@ func (d *Decoder) Init() {
 	d.Flags[AccLoad] = DecoderFlag{"AL  ", 0, false}
 	d.Flags[TempOut] = DecoderFlag{"TO  ", 0, false}
 	d.Flags[TempLoad] = DecoderFlag{"TL  ", 0, false}
-	d.Flags[ScratchPadIndex] = DecoderFlag{"SPI ", 0, false}
+	d.Flags[ScratchPadIndex] = DecoderFlag{"SPI ", -1, false}
 	d.Flags[ScratchPadLoad4] = DecoderFlag{"SPL4", 0, false}
 	d.Flags[ScratchPadLoad8] = DecoderFlag{"SPL8", 0, false}
 	d.Flags[ScratchPadOut] = DecoderFlag{"SPO ", 0, false}
+	d.Flags[ScratchPadInc] = DecoderFlag{"SP+ ", 0, false}
 	d.Flags[StackPush] = DecoderFlag{"PUSH", 0, false}
 	d.Flags[StackPop] = DecoderFlag{"POP ", 0, false}
 	d.Flags[DecodeInstruction] = DecoderFlag{"DEC ", 0, false}
 	d.Flags[EvalulateJCN] = DecoderFlag{"EJCN", 0, false}
+	d.Flags[EvalulateISZ] = DecoderFlag{"EISZ", 0, false}
 }
 
 func (d *Decoder) GetClockCount() int {
@@ -99,7 +106,11 @@ func (d *Decoder) GetClockCount() int {
 
 func (d *Decoder) resetFlags() {
 	for i := 0; i < END; i++ {
-		d.clearFlag(i, 0)
+		if i == ScratchPadIndex {
+			d.clearFlag(i, -1)
+		} else {
+			d.clearFlag(i, 0)
+		}
 	}
 }
 
@@ -191,6 +202,8 @@ func (d *Decoder) CalculateFlags() {
 		// If the X3 cycle is a read, read the external bus
 		if d.x3IsRead {
 			d.writeFlag(BusDir, common.DirIn)
+		} else {
+			d.writeFlag(BusDir, common.DirOut)
 		}
 		d.writeFlag(Sync, 1)
 	}
@@ -282,6 +295,8 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 		fallthrough
 	case JMS:
 		fallthrough
+	case ISZ:
+		fallthrough
 	case JUN:
 		// Are we on the first phase?
 		if d.dblInstruction == 0 {
@@ -292,12 +307,20 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 				rlog.Debug("JUN command decoded")
 			} else if opr == JMS {
 				rlog.Debug("JMS command decoded")
+			} else if opr == ISZ {
+				rlog.Debug("ISZ command decoded")
+				d.writeFlag(EvalulateISZ, 1)
 			}
 			if d.clockCount == 5 {
 				d.writeFlag(InstRegOut, 1)
 			} else if d.clockCount == 6 {
-				// Store the upper 4 bits in the temp register
-				d.writeFlag(TempLoad, 1)
+				if opr == ISZ {
+					d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
+					d.writeFlag(ScratchPadInc, 1)
+				} else {
+					// Store the upper 4 bits in the temp register
+					d.writeFlag(TempLoad, 1)
+				}
 				d.dblInstruction = d.currInstruction
 				d.currInstruction = -1
 			}
@@ -305,7 +328,7 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			if d.clockCount == 5 {
 				// If this is a conditional jump, evaluate the condition here
 				blockJump := false
-				if opr == JCN {
+				if opr == JCN || opr == ISZ {
 					blockJump = !evalResult
 				}
 				if !blockJump {
@@ -381,6 +404,25 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			d.writeFlag(InstRegOut, 1)
 		} else if d.clockCount == 6 {
 			d.writeFlag(AccLoad, 1)
+			d.currInstruction = -1
+		}
+	case LD:
+		rlog.Debug("LD command decoded")
+		if d.clockCount == 6 {
+			// Load the data from the selected scratchpad register
+			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
+			d.writeFlag(ScratchPadOut, 1)
+		} else if d.clockCount == 7 {
+			d.writeFlag(AccLoad, 1)
+			d.currInstruction = -1
+		}
+	case INC:
+		rlog.Debug("INC command decoded")
+		if d.clockCount == 6 {
+			// Select the scratchpad register
+			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
+			// Increment it
+			d.writeFlag(ScratchPadInc, 1)
 			d.currInstruction = -1
 		}
 	case FIM:
