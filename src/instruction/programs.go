@@ -4,7 +4,7 @@ func LEDCount() []uint8 {
 	data := make([]uint8, 0)
 	// FIXME: Implement with subroutine
 	for i := 0; i < 16; i++ {
-		addInstruction(&data, LDM|0)        // Load 5 into the accumulator (chip ID)
+		addInstruction(&data, LDM|0)        // Load 0 into the accumulator (chip ID)
 		addInstruction(&data, XCH|2)        // Swap accumulator with r2
 		addInstruction(&data, LDM|uint8(i)) // Load i value into the accumulator
 		addInstruction(&data, SRC|(2))      // Send address in r2,r3 to ROM/RAM

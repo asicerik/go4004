@@ -365,14 +365,28 @@ func TestBBL(t *testing.T) {
 	}
 
 	// Now, pop the stack
-	addr = runOneCycle(&core, uint64(instruction.BBL), t)
+	// This value should end up in the accumulator after the pop
+	accumVal := uint64(0x9)
+	addr = runOneCycle(&core, uint64(instruction.BBL|accumVal), t)
 	if addr != uint64(expAddr) {
 		t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
 	}
 	// Now we should be back where we started
 	expAddr = 1
-	addr = runOneCycle(&core, uint64(instruction.BBL), t)
+	addr = runOneCycle(&core, uint64(instruction.NOP), t)
 	if addr != uint64(expAddr) {
 		t.Errorf("Continue address mismatch. Exp %X, got %X", expAddr, addr)
+	}
+	verifyAccumulator(&core, accumVal, t)
+}
+
+func verifyAccumulator(core *Core, exp uint64, t *testing.T) {
+	// Swap the accumulator with register 14
+	regPair := 7
+	runOneCycle(core, uint64(instruction.XCH|(regPair<<1)), t)
+	// Run the SRC command
+	_, srcVal := runOneIOCycle(core, uint64(instruction.SRC|(regPair<<1)), t)
+	if exp != srcVal {
+		t.Errorf("Accumulator val %X was not equal to %X", srcVal, exp)
 	}
 }

@@ -404,12 +404,16 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 		}
 	case BBL:
 		// Branch back and address stack pop
-		if d.clockCount == 5 {
+		if d.clockCount == 6 {
 			rlog.Debug("BBL command decoded")
 			// Pop the address stack
 			d.writeFlag(StackPop, 1)
+			// Store the data passed into the accumulator
+			d.writeFlag(InstRegOut, 1)
 			// NOTE : the stack pointer contains the address where the jump was.
 			// The incrementer will fire and add 1
+		} else if d.clockCount == 7 {
+			d.writeFlag(AccLoad, 1)
 			d.currInstruction = -1
 		}
 	}
