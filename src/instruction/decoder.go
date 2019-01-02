@@ -25,6 +25,21 @@ const BBL = 0xC0 // Branch back (stack pop)
 const WRR = 0xE2 // ROM I/O write
 const RDR = 0xEA // ROM I/O read
 const ACC = 0xF0 // Alias for all the accumulator instructions
+// Accumulator instructions
+const CLB = ACC | 0x0 // Clear accumulator and carry
+const CLC = ACC | 0x1 // Clear carry
+const IAC = ACC | 0x2 // Increment accumulator
+const CMC = ACC | 0x3 // Complement carry
+const CMA = ACC | 0x4 // Complement accumulator
+const RAL = ACC | 0x5 // Rotate left (accumulator and carry)
+const RAR = ACC | 0x6 // Rotate right (accumulator and carry)
+const TCC = ACC | 0x7 // Transmit carry to accumulator and clear carry
+const DAC = ACC | 0x8 // Decrement accumulator
+const TCS = ACC | 0x9 // Transmit carry subtract and clear carry
+const STC = ACC | 0xA // Set carry
+const DAA = ACC | 0xB // Decimal adjust
+const KBP = ACC | 0xC // Keyboard process
+const DCL = ACC | 0xD // Designate command line
 
 // Some helpers
 // You can use any of these three in combination
@@ -202,6 +217,10 @@ func (d *Decoder) CalculateFlags() {
 		// Drive the current address (nybble 2) to the external bus
 		d.writeFlag(BusDir, common.DirOut)
 		d.writeFlag(PCOut, 1)
+	case 3:
+		if d.syncSent {
+			d.writeFlag(BusDir, common.DirIn)
+		}
 	case 4:
 		if d.syncSent {
 			// Read the OPR from the external bus and write it into the instruction register

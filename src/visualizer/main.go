@@ -43,7 +43,7 @@ func KeyDown(scancode int, rn rune, name string) {
 
 func main() {
 
-	enableLog := true
+	enableLog := false
 	// Programmatically change an rlog setting from within the program
 	if enableLog {
 		os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
@@ -112,12 +112,18 @@ func main() {
 			for i := 0; i < clocksPerRender; i++ {
 				if enableLog {
 					DumpState(core, rom, &ioBus)
+					rlog.Info("SETUP PHASE **************************************************")
 				}
+
 				core.Calculate()
 				core.ClockIn()
 				rom.ClockIn()
+				if enableLog {
+					rlog.Info("CLOCK PHASE **************************************************")
+				}
 				core.ClockOut()
 				rom.ClockOut()
+				core.UpdateInternalBus()
 				cycleCount++
 			}
 			// Render twice because glfw is double buffered

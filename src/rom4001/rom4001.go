@@ -35,6 +35,7 @@ type Rom4001 struct {
 	srcDetected    bool              // SRC command was detected
 	srcRomID       uint64            // The ROM ID sent in the SRC command
 	ioOpDetected   bool              // IO Operation was detected
+	drivingBus     bool              // The ROM is driving the external bus
 }
 
 func (r *Rom4001) Init(busExt *common.Bus, sync *int, cm *int) {
@@ -213,6 +214,7 @@ func (r *Rom4001) ClockOut() {
 
 	// Defaults
 	r.busBuf.Disable()
+	r.drivingBus = false
 
 	if !r.syncSeen {
 		return
@@ -244,6 +246,7 @@ func (r *Rom4001) ClockOut() {
 			// rlog.Debugf("ROM %d: writing %X to bus", r.chipID, data&0xf)
 			r.busInt.Write(data & 0xf)
 			r.busBuf.AtoB()
+			r.drivingBus = true
 		} else {
 			// Copy from the external bus to the internal bus
 			// r.busBuf.BtoA()
@@ -256,6 +259,7 @@ func (r *Rom4001) ClockOut() {
 				// IO Read
 				r.busInt.Write(r.ioBus.Read() & 0xf)
 				r.busBuf.AtoB()
+				r.drivingBus = true
 			}
 		}
 	}

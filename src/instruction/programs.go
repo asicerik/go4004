@@ -28,6 +28,7 @@ func LEDCountUsingAdd() []uint8 {
 	loopStart := uint8(len(data))
 	addInstruction(&data, SRC|(2)) // Send address in r2,r3 to ROM/RAM
 	addInstruction(&data, WRR)     // Write accumulator to ROM
+	//	addInstruction(&data, CLC)     // Clear the carry bit so subtract will work
 	addInstruction(&data, ADD|(4)) // Add register 4 to the accumulator
 
 	addInstruction(&data, JUN)       // Jump back to ROM 0

@@ -69,6 +69,21 @@ func (c *Core) Calculate() {
 	c.Decoder.CalculateFlags()
 }
 
+// UpdateInternalBus is just for the renderer to show the internal bus updated
+// after an external device puts data on the external bus
+func (c *Core) UpdateInternalBus() {
+	c.internalDataBus.Reset()
+	// Load the data from the external bus if needed
+	// MAKE SURE NONE ELSE IS DRIVING THE INTERNAL BUS!!!
+	if c.getDecoderFlag(instruction.BusDir) == common.DirIn &&
+		c.getDecoderFlag(instruction.PCOut) == 0 &&
+		c.getDecoderFlag(instruction.AccOut) == 0 &&
+		c.getDecoderFlag(instruction.TempOut) == 0 &&
+		c.getDecoderFlag(instruction.ScratchPadOut) == 0 {
+		c.busBuffer.buf.AtoB()
+	}
+}
+
 // ClockIn clock in external inputs to the core
 func (c *Core) ClockIn() {
 	// Load the data from the external bus if needed

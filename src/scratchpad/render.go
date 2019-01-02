@@ -50,7 +50,7 @@ func (r *Renderer) InitRender(regs *Registers, canvas *canvas.Canvas, bounds ima
 
 // Render the contents to the screen
 func (r *Renderer) Render(canvas *canvas.Canvas) {
-
+	r.dataBusRenderer.DrivingBus = &r.regs.drivingBus
 	r.dataBusRenderer.Render(canvas)
 
 	for i := range r.registerRenderers {

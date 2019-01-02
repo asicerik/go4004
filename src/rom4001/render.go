@@ -69,6 +69,7 @@ func (r *Renderer) Bounds() image.Rectangle {
 // Render the contents to the screen
 func (r *Renderer) Render(canvas *canvas.Canvas) {
 
+	r.dataBusRenderer.DrivingBus = &r.rom.drivingBus
 	r.dataBusRenderer.Render(canvas)
 	r.addrRenderer.Render(canvas)
 	r.busBufRenderer.Render(canvas)

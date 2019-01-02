@@ -8,11 +8,12 @@ import (
 )
 
 type Registers struct {
-	regs    []common.Register
-	index   int
-	dataBus *common.Bus
-	width   int
-	mask    uint64
+	regs       []common.Register
+	index      int
+	dataBus    *common.Bus
+	width      int
+	mask       uint64
+	drivingBus bool
 }
 
 func (r *Registers) Init(dataBus *common.Bus, width int, depth int) {
@@ -32,6 +33,7 @@ func (r *Registers) Init(dataBus *common.Bus, width int, depth int) {
 
 func (r *Registers) Read() {
 	r.regs[r.index].Read()
+	r.drivingBus = true
 }
 
 func (r *Registers) Select(index int) {
