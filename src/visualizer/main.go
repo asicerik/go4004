@@ -9,16 +9,41 @@ import (
 	"instruction"
 	"os"
 	"rom4001"
-	"time"
 
 	"github.com/romana/rlog"
 
 	"github.com/tfriedel6/canvas/glfwcanvas"
 )
 
+type runFlags struct {
+	StepClock bool // Step one clock
+	StepCycle bool // Step 8 clocks
+	FreeRun   bool // Let 'er rip!
+	Halt      bool // Stop the processor
+	Quit      bool // Quit the program
+}
+
+var currentRunFlags = runFlags{}
+
+func KeyDown(scancode int, rn rune, name string) {
+	currentRunFlags = runFlags{}
+	switch name {
+	case "KeyC":
+		currentRunFlags.StepClock = true
+	case "KeyS":
+		currentRunFlags.StepCycle = true
+	case "KeyR":
+		currentRunFlags.FreeRun = true
+	case "Escape":
+		fallthrough
+	case "KeyQ":
+		currentRunFlags.Quit = true
+	}
+}
+
 func main() {
 
-	enableLog := false
+	enableLog := true
 	// Programmatically change an rlog setting from within the program
 	if enableLog {
 		os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
@@ -68,18 +93,22 @@ func main() {
 		image.Point{int(css.Margin), int(css.Margin) + romHeight},
 		image.Point{canvas.Width() - int(2*css.Margin), canvas.Height() - int(2*css.Margin) - romHeight}})
 
-	lastTime := time.Now()
-	renderCount := 0
+	// Set window callbacks
+	wnd.KeyDown = KeyDown
+
+	renderCount := 2
 	// How many clock cycles do we run between renders
 	// 1 = render every clock cycle (= SLOW)
 	// Current max performance is about 160kHz on my machine,
 	// which works out to about 5,300 clocks max before the frame
 	// rate drops. 8192 gives about 20fps on my machine
 	clocksPerRender := 1
+	cycleCount := 0
 	wnd.MainLoop(func() {
-		currTime := time.Now()
-		if currTime.Sub(lastTime).Seconds() >= 0.01 {
-			lastTime = currTime
+		if currentRunFlags.Quit {
+			wnd.Close()
+		}
+		if currentRunFlags.StepClock || currentRunFlags.StepCycle || currentRunFlags.FreeRun {
 			for i := 0; i < clocksPerRender; i++ {
 				if enableLog {
 					DumpState(core, rom, &ioBus)
@@ -89,6 +118,7 @@ func main() {
 				rom.ClockIn()
 				core.ClockOut()
 				rom.ClockOut()
+				cycleCount++
 			}
 			// Render twice because glfw is double buffered
 			renderCount = 2
@@ -98,27 +128,23 @@ func main() {
 			romRenderer.Render(canvas)
 			led0Renderer.Render(canvas)
 			canvas.SetFillStyle("#ccc")
-			canvas.FillRect(20, float64(canvas.Height())-70, 500, 40)
+			canvas.FillRect(20, float64(canvas.Height())-70, float64(canvas.Width()), 80)
 			canvas.SetFillStyle("#000")
 			canvas.FillText(fmt.Sprintf("FPS=%3.1f, CPU Clock=%3.2f kHz",
 				wnd.FPS(), (wnd.FPS()*float32(clocksPerRender))/1000),
 				20, float64(canvas.Height())-40)
+
+			canvas.FillText(fmt.Sprintf("'C'=Step Clock 'S'=Step Cycle 'R'=Free Run 'Q'=Quit"),
+				20, float64(canvas.Height())-10)
 			renderCount--
+		}
+		currentRunFlags.StepClock = false
+		if cycleCount > 7 {
+			currentRunFlags.StepCycle = false
+			cycleCount = 0
 		}
 	})
 
-	// var loops = 1000000
-	// for i := 0; i < loops; i++ {
-	// 	// DumpState(core, rom)
-	// 	core.Calculate()
-	// 	core.ClockIn()
-	// 	rom.ClockIn()
-	// 	core.ClockOut()
-	// 	rom.ClockOut()
-	// }
-	// duration := time.Now().Sub(lastTime).Seconds()
-	// hz := float64(loops) / duration
-	// rlog.Infof("Elapsed time = %f seconds, or %3.1f kHz", duration, hz/1000)
 	rlog.Info("Goodbye")
 }
 

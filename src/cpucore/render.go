@@ -5,6 +5,7 @@ import (
 	"alu"
 	"common"
 	"css"
+	"fmt"
 	"image"
 	"instruction"
 	"scratchpad"
@@ -26,6 +27,9 @@ type Renderer struct {
 	externalBufferRenderer  ExternalBusBufferRenderer
 	asRenderer              addressstack.Renderer
 	instRenderer            instruction.Renderer
+	instDirty               int // non-zero = render
+	instX                   int
+	instY                   int
 }
 
 // InitRender Initializes the renderer
@@ -33,6 +37,7 @@ func (r *Renderer) InitRender(core *Core, canvas *canvas.Canvas, bounds image.Re
 	r.core = core
 	r.bounds = bounds
 	r.dirty = 2
+	r.instDirty = 2
 
 	// Initialize all the child renderers
 	mainBusSizePx := 32
@@ -67,11 +72,14 @@ func (r *Renderer) InitRender(core *Core, canvas *canvas.Canvas, bounds image.Re
 	instLeftMargin := 20
 	instLeft := aluRight + instLeftMargin
 	instWidth := int(css.RegisterWidth)
-	instHeight := 320
+	instHeight := 250
 	instRight := instLeft + instWidth
 	r.instRenderer.InitRender(&r.core.inst, canvas, image.Rectangle{
 		image.Point{instLeft, intBusY + mainBusSizePx/2},
 		image.Point{instRight, intBusY + mainBusSizePx/2 + instHeight}})
+
+	r.instX = instLeft + 33
+	r.instY = intBusY + instHeight - 40
 
 	asLeftMargin := 40
 	asLeft := instRight + asLeftMargin
@@ -92,7 +100,7 @@ func (r *Renderer) InitRender(core *Core, canvas *canvas.Canvas, bounds image.Re
 
 // Render renders the current state of this element
 func (r *Renderer) Render(canvas *canvas.Canvas) {
-	canvas.SetFillStyle("#ccc")
+	canvas.SetFillStyle(css.Background)
 	if r.dirty > 0 {
 		canvas.FillRect(0, 0, float64(canvas.Width()), float64(canvas.Height()))
 		r.dirty--
@@ -104,6 +112,21 @@ func (r *Renderer) Render(canvas *canvas.Canvas) {
 	r.instRenderer.Render(canvas)
 	r.asRenderer.Render(canvas)
 	r.scratchPadRenderer.Render(canvas)
+	if r.core.Decoder.InstChanged {
+		r.instDirty = 2
+	}
+	if r.instDirty > 0 {
+		canvas.SetFillStyle(css.Background)
+		canvas.FillRect(float64(r.instX), float64(r.instY)-20, 100, 30)
+		canvas.SetFillStyle(css.TextNormal)
+		canvas.FillText(r.core.Decoder.DecodedInstruction, float64(r.instX), float64(r.instY))
+		r.instDirty--
+	}
+	// Always render the clock count
+	canvas.SetFillStyle(css.Background)
+	canvas.FillRect(float64(r.instX), float64(r.instY), 100, 30)
+	canvas.SetFillStyle(css.TextNormal)
+	canvas.FillText(fmt.Sprintf("CLK=%d", r.core.GetClockCount()), float64(r.instX), float64(r.instY+20))
 }
 
 type ExternalBusBufferRenderer struct {

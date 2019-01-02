@@ -3,6 +3,7 @@ package instruction
 import (
 	"alu"
 	"common"
+	"fmt"
 
 	"github.com/romana/rlog"
 )
@@ -43,7 +44,9 @@ type DecoderFlag struct {
 
 type Decoder struct {
 	// Control Flags
-	Flags map[int]DecoderFlag
+	Flags              map[int]DecoderFlag
+	DecodedInstruction string // For the renderer
+	InstChanged        bool   // For the renderer
 
 	clockCount      int // Internal clock count
 	instPhase       int // which instruction phase are we in
@@ -87,6 +90,8 @@ const (
 )
 
 func (d *Decoder) Init() {
+	d.DecodedInstruction = "NOP"
+	d.InstChanged = true
 	d.clockCount = 0
 	d.syncSent = false
 	d.currInstruction = -1
@@ -250,7 +255,7 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 		if (fullInst & 0xf1) == JIN {
 			// Jump indirect to address in specified register pair
 			if d.clockCount == 6 {
-				rlog.Debug("JIN command decoded")
+				d.setDecodedInstruction(fmt.Sprintf("JIN %X", d.currInstruction&0xe))
 				// Output the lower address to the program counter
 				d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xe)+0) // Note - we are chopping bit 0
 				d.writeFlag(ScratchPadOut, 1)
@@ -274,7 +279,6 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			// Fetch indirect to address in register pair 0
 			// then store the result in specified register pair
 			if d.clockCount == 0 {
-				rlog.Debug("FIN command decoded")
 				// Output the lower address to the data bus
 				d.writeFlag(ScratchPadIndex, 0)
 				d.writeFlag(ScratchPadOut, 1)
@@ -297,6 +301,7 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 				d.writeFlag(ScratchPadIndex, int(d.dblInstruction&0xe)+0) // Note - we are chopping bit 0
 				d.writeFlag(ScratchPadLoad4, 1)
 			} else if d.clockCount == 5 && d.dblInstruction > 0 {
+				d.setDecodedInstruction(fmt.Sprintf("FIN %X", d.currInstruction&0xf))
 				// Load the ROM data into the scratch pad register pair 1
 				d.writeFlag(ScratchPadIndex, int(d.dblInstruction&0xe)+1) // Note - we are chopping bit 0
 				d.writeFlag(ScratchPadLoad4, 1)
@@ -319,17 +324,21 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 		// Are we on the first phase?
 		if d.dblInstruction == 0 {
 			if opr == JCN {
-				rlog.Debug("JCN command decoded")
 				d.writeFlag(EvalulateJCN, 1)
-			} else if opr == JUN {
-				rlog.Debug("JUN command decoded")
-			} else if opr == JMS {
-				rlog.Debug("JMS command decoded")
 			} else if opr == ISZ {
-				rlog.Debug("ISZ command decoded")
 				d.writeFlag(EvalulateISZ, 1)
 			}
 			if d.clockCount == 5 {
+				if opr == JCN {
+					d.setDecodedInstruction(fmt.Sprintf("JCN %X", d.currInstruction&0xf))
+				} else if opr == JUN {
+					d.setDecodedInstruction(fmt.Sprintf("JUN %X", d.currInstruction&0xf))
+				} else if opr == JMS {
+					d.setDecodedInstruction(fmt.Sprintf("JMS %X", d.currInstruction&0xf))
+				} else if opr == ISZ {
+					d.setDecodedInstruction(fmt.Sprintf("ISZ %X", d.currInstruction&0xf))
+				}
+
 				d.writeFlag(InstRegOut, 1)
 			} else if d.clockCount == 6 {
 				if opr == ISZ {
@@ -392,9 +401,9 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 		}
 
 	case XCH:
-		rlog.Debug("XCH command decoded")
 		// Exchange the accumulator and the scratchpad register
 		if d.clockCount == 5 {
+			d.setDecodedInstruction(fmt.Sprintf("XCH %X", d.currInstruction&0xf))
 			// Output the current scratchpad register
 			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
 			d.writeFlag(ScratchPadOut, 1)
@@ -417,16 +426,16 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			d.currInstruction = -1
 		}
 	case LDM:
-		rlog.Debug("LDM command decoded")
 		if d.clockCount == 5 {
 			d.writeFlag(InstRegOut, 1)
+			d.setDecodedInstruction(fmt.Sprintf("LDM %X", d.currInstruction&0xf))
 		} else if d.clockCount == 6 {
 			d.writeFlag(AccLoad, 1)
 			d.currInstruction = -1
 		}
 	case LD:
-		rlog.Debug("LD command decoded")
 		if d.clockCount == 6 {
+			d.setDecodedInstruction(fmt.Sprintf("LD  %X", d.currInstruction&0xf))
 			// Load the data from the selected scratchpad register
 			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
 			d.writeFlag(ScratchPadOut, 1)
@@ -435,8 +444,8 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			d.currInstruction = -1
 		}
 	case INC:
-		rlog.Debug("INC command decoded")
 		if d.clockCount == 6 {
+			d.setDecodedInstruction(fmt.Sprintf("INC %X", d.currInstruction&0xf))
 			// Select the scratchpad register
 			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
 			// Increment it
@@ -447,10 +456,10 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 		fallthrough
 	case SRC:
 		if (fullInst & 0x1) == 0 {
-			rlog.Debug("FIM command decoded")
+			d.setDecodedInstruction("FIM")
 		} else {
 			// Send I/O address to ROM/RAM
-			rlog.Debug("SRC command decoded")
+			d.setDecodedInstruction(fmt.Sprintf("SRC %X", (d.currInstruction&0xf)>>1))
 			if d.clockCount == 6 {
 				// Output the selected scratchpad register
 				d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xe)) // Note - we are chopping bit 0
@@ -465,7 +474,7 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 	case BBL:
 		// Branch back and address stack pop
 		if d.clockCount == 6 {
-			rlog.Debug("BBL command decoded")
+			d.setDecodedInstruction(fmt.Sprintf("BBL %X", d.currInstruction&0xf))
 			// Pop the address stack
 			d.writeFlag(StackPop, 1)
 			// Store the data passed into the accumulator
@@ -477,8 +486,8 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 			d.currInstruction = -1
 		}
 	case ADD:
-		rlog.Debug("ADD command decoded")
 		if d.clockCount == 5 {
+			d.setDecodedInstruction(fmt.Sprintf("ADD %X", d.currInstruction&0xf))
 			d.writeFlag(AluMode, alu.AluIntModeAdd)
 			// Output the data from the selected scratchpad register
 			d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
@@ -497,7 +506,7 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 	case WRR:
 		// ROM I/O Write
 		// Send I/O address to ROM/RAM
-		rlog.Debug("WRR command decoded")
+		d.setDecodedInstruction("WRR")
 		if d.clockCount == 6 {
 			// Output the accumulator to the external bus
 			d.writeFlag(AccOut, 1)
@@ -505,4 +514,10 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 		}
 	}
 	return err
+}
+
+func (d *Decoder) setDecodedInstruction(inst string) {
+	d.DecodedInstruction = inst
+	d.InstChanged = true
+	rlog.Debugf("--- Decoded instruction is: %s", d.DecodedInstruction)
 }

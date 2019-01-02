@@ -7,6 +7,7 @@ var (
 	Margin                     = 16.0
 	RegisterWidth              = 120.0
 	RegisterHeight             = 40.0
+	Background                 = "#ccc"
 	TextNormal                 = "#000"
 	RegisterBorder             = "#ddd"
 	RegisterBackgroundSelected = "#666"

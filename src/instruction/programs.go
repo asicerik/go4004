@@ -32,6 +32,7 @@ func LEDCountUsingAdd() []uint8 {
 
 	addInstruction(&data, JUN)       // Jump back to ROM 0
 	addInstruction(&data, loopStart) // Jump to start of loop
+
 	// Fill the rest of the space up till 256
 	zeroes := make([]uint8, 256-len(data))
 	data = append(data, zeroes...)
