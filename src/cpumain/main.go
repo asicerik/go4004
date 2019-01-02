@@ -13,11 +13,11 @@ import (
 
 func main() {
 
-	enableLog := false
+	enableLog := true
 	// Programmatically change an rlog setting from within the program
 	if enableLog {
-		os.Setenv("RLOG_LOG_LEVEL", "DEBUG")
-		os.Setenv("RLOG_TRACE_LEVEL", "0")
+		os.Setenv("RLOG_LOG_LEVEL", "ERROR")
+		//os.Setenv("RLOG_TRACE_LEVEL", "0")
 		os.Setenv("RLOG_LOG_FILE", "go4004.log")
 		rlog.UpdateEnv()
 	}
@@ -48,7 +48,7 @@ func main() {
 	}
 	duration := time.Now().Sub(lastTime).Seconds()
 	hz := float64(loops) / duration
-	rlog.Infof("Elapsed time = %f seconds, or %3.1f kHz", duration, hz/1000)
+	rlog.Errorf("Elapsed time = %f seconds, or %3.1f kHz", duration, hz/1000)
 	rlog.Info("Goodbye")
 }
 
