@@ -17,12 +17,14 @@ const JMS = 0x50 // Jump to subroutine
 const INC = 0x60 // Increment register
 const ISZ = 0x70 // Increment register and jump if zero
 const ADD = 0x80 // Add register to accumulator with carry
+const SUB = 0x90 // Subtract register from accumulator with borrow
 const LDM = 0xD0 // Load direct into accumulator
 const LD = 0xA0  // Load register into accumulator
 const XCH = 0xB0 // Exchange the accumulator and scratchpad register
 const BBL = 0xC0 // Branch back (stack pop)
 const WRR = 0xE2 // ROM I/O write
 const RDR = 0xEA // ROM I/O read
+const ACC = 0xF0 // Alias for all the accumulator instructions
 
 // Some helpers
 // You can use any of these three in combination
@@ -69,6 +71,7 @@ const (
 	PCInc                    // Increment the program counter
 	AccOut                   // Accumulator register should drive the bus
 	AccLoad                  // Load the accumulator from the internal bus
+	AccInst                  // Execute an accumulator instruction
 	TempLoad                 // Load the temp register from the internal bus
 	TempOut                  // Temp register should drive the bus
 	AluOut                   // ALU core should drive the bus
@@ -104,6 +107,7 @@ func (d *Decoder) Init() {
 	d.Flags[PCInc] = DecoderFlag{"PCI ", 0, false}
 	d.Flags[AccOut] = DecoderFlag{"ACCO  ", 0, false}
 	d.Flags[AccLoad] = DecoderFlag{"ACCL  ", 0, false}
+	d.Flags[AccInst] = DecoderFlag{"ACCL  ", -1, false}
 	d.Flags[TempOut] = DecoderFlag{"TMPO  ", 0, false}
 	d.Flags[TempLoad] = DecoderFlag{"TMPL  ", 0, false}
 	d.Flags[AluOut] = DecoderFlag{"ALUO", 0, false}
@@ -127,7 +131,7 @@ func (d *Decoder) GetClockCount() int {
 
 func (d *Decoder) resetFlags() {
 	for i := 0; i < END; i++ {
-		if i == ScratchPadIndex {
+		if i == ScratchPadIndex || i == AccInst {
 			d.clearFlag(i, -1)
 		} else {
 			d.clearFlag(i, 0)
@@ -275,6 +279,11 @@ func (d *Decoder) decodeCurrentInstruction(evalResult bool) (err error) {
 		err = d.handleBBL(fullInst, evalResult)
 	case ADD:
 		err = d.handleADD(fullInst, evalResult)
+	case SUB:
+		err = d.handleSUB(fullInst, evalResult)
+	// Collectively, all the accumulator instructions
+	case ACC:
+		err = d.handleACC(fullInst, evalResult)
 	}
 
 	// These instructions require decoding the entire 8 bits

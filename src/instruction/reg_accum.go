@@ -88,3 +88,22 @@ func (d *Decoder) handleADD(fullInst int, evalResult bool) (err error) {
 	}
 	return err
 }
+
+func (d *Decoder) handleSUB(fullInst int, evalResult bool) (err error) {
+	if d.clockCount == 5 {
+		d.setDecodedInstruction(fmt.Sprintf("SUB %X", d.currInstruction&0xf))
+		d.writeFlag(AluMode, alu.AluIntModeSub)
+		// Output the data from the selected scratchpad register
+		d.writeFlag(ScratchPadIndex, int(d.currInstruction&0xf))
+		d.writeFlag(ScratchPadOut, 1)
+	} else if d.clockCount == 6 {
+		// Load the value into the temp register
+		d.writeFlag(TempLoad, 1)
+	} else if d.clockCount == 7 {
+		// Evaluate the ALU and write the value into the accumulator
+		d.writeFlag(AluEval, 1)
+		d.writeFlag(AccLoad, 1)
+		d.currInstruction = -1
+	}
+	return err
+}

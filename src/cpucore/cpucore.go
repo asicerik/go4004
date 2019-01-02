@@ -104,6 +104,9 @@ func (c *Core) ClockIn() {
 		c.alu.Evaluate()
 		c.alu.ReadEval()
 	}
+	if c.getDecoderFlag(instruction.AccInst) >= 0 {
+		c.alu.ExectuteAccInst(c.getDecoderFlag(instruction.AccInst))
+	}
 
 	// Finally, any internal bus loads. Do this last to make sure the bus has valid data
 	if c.getDecoderFlag(instruction.AccLoad) != 0 {
