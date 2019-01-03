@@ -9,6 +9,7 @@ import (
 	"instruction"
 	"os"
 	"rom4001"
+	"supportcommon"
 
 	"github.com/romana/rlog"
 
@@ -72,9 +73,9 @@ func main() {
 	rom.SetIOBus(&ioBus)
 	WriteROM(&rom)
 
-	romRenderer := rom4001.Renderer{}
+	romRenderer := supportcommon.RamRomRenderer{}
 	romLeft := int(css.Margin) + 40
-	romRenderer.InitRender(&rom, canvas, image.Rectangle{
+	romRenderer.InitRender(&rom.Core, canvas, image.Rectangle{
 		image.Point{romLeft, int(css.Margin)},
 		image.Point{romLeft, int(css.Margin)}})
 	romHeight := romRenderer.Bounds().Dy()
